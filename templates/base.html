@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MedNexus AI - Advanced AI Medical Consultations{% endblock %}</title>
+
+    <!-- CSRF Token for AJAX -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <!-- Global SEO Meta Tags -->
+    <meta name="description"
+        content="{% block meta_description %}MedNexus AI offers instant medical consultations with specialized AI doctors in ENT, Dermatology, Psychiatry, and Pharmacy. Powered by advanced LangGraph and RAG technology.{% endblock %}">
+    <meta name="keywords"
+        content="AI Hospital, AI Doctor, Online Medical Consultation, AI Dermatologist, AI Psychiatrist, AI ENT Specialist, Smart Healthcare, Digital Health">
+    <meta name="author" content="SmartAI Hospital Team">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="{{ request.url }}">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:title" content="{% block og_title %}{% endblock %}MedNexus AI - Your Future of Health. Now.">
+    <meta property="og:description"
+        content="{% block og_description %}Connect with autonomous AI specialists rooted in verified medical data. Get instant consults, secure insights, and comprehensive reports.{% endblock %}">
+    <meta property="og:image" content="{{ url_for('static', filename='images/og-image.jpg', _external=True) }}">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="{{ request.url }}">
+    <meta property="twitter:title"
+        content="{% block twitter_title %}{% endblock %}MedNexus AI - AI Medical Specialists">
+    <meta property="twitter:description"
+        content="{% block twitter_description %}Instant AI-powered medical consultations. Specialized care in Dermatology, ENT, Psychiatry, and Pharmacy.{% endblock %}">
+    <meta property="twitter:image"
+        content="{{ url_for('static', filename='images/twitter-card.jpg', _external=True) }}">
+
+    <!-- Structured Data (JSON-LD) - MedicalOrganization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "MedicalOrganization",
+      "name": "MedNexus AI",
+      "url": "{{ url_for('index', _external=True) }}",
+      "logo": "{{ url_for('static', filename='images/logo4.gif', _external=True) }}",
+      "description": "A state-of-the-art medical ecosystem featuring specialized AI agents for patient care and clinical assistance.",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "support@mednexus.ai",
+        "contactType": "customer support"
+      },
+      "sameAs": [
+        "https://www.facebook.com/smartaihospital",
+        "https://twitter.com/smartaihospital",
+        "https://www.linkedin.com/company/smartaihospital"
+      ]
+    }
+    </script>
+
+    <link rel="icon" type="image/gif" href="{{ url_for('static', filename='images/logo4.gif') }}">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome (Minimal use) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Base Styles -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Clean standard transitions */
+        .transition-standard {
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            /* slate-300 */
+            border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background-color: #475569;
+            /* slate-600 */
+        }
+
+        /* Page Transition Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
+
+    {% block navigation %}
+    <!-- Navigation -->
+    <nav
+        class="fixed w-full z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex md:justify-between justify-center h-[6.5rem] md:h-16 items-center relative">
+                <!-- Branding -->
+                <a href="/" class="flex items-center gap-2 md:static group">
+                    <!-- Logo (Left on mobile) -->
+                    <div class="md:static absolute left-4 flex items-center">
+                        <div
+                            class="w-10 h-10 flex items-center justify-center overflow-hidden rounded-full border-2 border-blue-600/20 bg-white dark:bg-gray-800 shadow-sm group-hover:border-blue-600/40 transition-colors">
+                            <img src="{{ url_for('static', filename='images/logo4.gif') }}" alt="SmartAI Logo"
+                                class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                    <!-- Text (Centered on mobile) -->
+                    <span
+                        class="font-display font-bold text-xl text-gray-900 dark:text-white tracking-tight md:ml-0 group-hover:text-blue-600 transition-colors">
+                        MedNexus<span class="text-blue-600"> AI</span>
+                    </span>
+                </a>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="/"
+                        class="text-sm font-medium transition-colors {% if request.path == '/' %}text-blue-600 dark:text-blue-400 font-bold border-b-2 border-blue-600 dark:border-blue-400{% else %}text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400{% endif %}">Home</a>
+                    <a href="/specialists"
+                        class="text-sm font-medium transition-colors {% if '/specialists' in request.path %}text-blue-600 dark:text-blue-400 font-bold border-b-2 border-blue-600 dark:border-blue-400{% else %}text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400{% endif %}">Specialists</a>
+
+                    {% if session.get('user_id') %}
+                    <div class="relative inline-block text-left group">
+                        <button type="button"
+                            class="flex items-center gap-3 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 focus:outline-none"
+                            id="user-menu-button" aria-expanded="false" aria-haspopup="true">
+                            <div
+                                class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform overflow-hidden">
+                                {% if session.get('profile_pic') %}
+                                <img src="{{ session.get('profile_pic') }}" alt="Profile"
+                                    class="w-full h-full object-cover">
+                                {% else %}
+                                {{ (session.get('full_name') or session.get('username')).split('@')[0][0] | upper }}
+                                {% endif %}
+                            </div>
+                        </button>
+
+                        <!-- Profile Dropdown -->
+                        <div
+                            class="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl bg-white dark:bg-gray-900 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none invisible group-hover:visible opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-50 overflow-hidden border border-gray-100 dark:border-gray-800">
+                            <div
+                                class="p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+                                <p
+                                    class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">
+                                    Authenticated User</p>
+                                <p class="text-xs font-bold text-gray-900 dark:text-white truncate">{{
+                                    (session.get('full_name') or session.get('username')).split('@')[0] }}</p>
+                                {% if session.get('full_name') %}
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate">{{
+                                    session.get('username') }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="py-2">
+                                <a href="/logout"
+                                    class="flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                                    <i class="fas fa-sign-out-alt w-4"></i> Log out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <a href="/login"
+                        class="text-sm font-bold text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 transition-colors">Login</a>
+                    <a href="/signup"
+                        class="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-all hover:shadow-lg hover:shadow-blue-500/30 transform hover:-translate-y-0.5">Sign
+                        Up</a>
+                    {% endif %}
+
+
+                    <!-- Dark Mode Toggle -->
+                    <button id="theme-toggle"
+                        class="p-2 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-all focus:outline-none"
+                        aria-label="Toggle Theme">
+                        <!-- Sun Icon (Light Mode Active) -->
+                        <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor"
+                            viewBox="0 0 20 20">
+                            <path
+                                d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z"
+                                fill-rule="evenodd" clip-rule="evenodd"></path>
+                        </svg>
+                        <!-- Moon Icon (Dark Mode Active) -->
+                        <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="absolute right-4 flex items-center md:hidden">
+                    <button id="mobile-menu-btn"
+                        class="text-gray-600 dark:text-gray-200 hover:text-gray-900 focus:outline-none p-2">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div id="mobile-menu"
+            class="hidden md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 absolute w-full left-0 top-[6.5rem] shadow-lg">
+            <div class="px-4 pt-2 pb-6 space-y-2">
+                <!-- Mobile Theme Toggle -->
+                <div
+                    class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800 mb-2">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Theme</span>
+                    <button id="mobile-theme-toggle"
+                        class="p-2 rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                        <!-- Sun Icon (Light Mode Active) -->
+                        <svg id="mobile-theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor"
+                            viewBox="0 0 20 20">
+                            <path
+                                d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z"
+                                fill="evenodd" clip-rule="evenodd"></path>
+                        </svg>
+                        <!-- Moon Icon (Dark Mode Active) -->
+                        <svg id="mobile-theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor"
+                            viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <a href="/"
+                    class="block px-3 py-2 rounded-md text-base font-medium transition-colors {% if request.path == '/' %}bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-blue-600{% endif %}">Home</a>
+                <a href="/specialists"
+                    class="block px-3 py-2 rounded-md text-base font-medium transition-colors {% if '/specialists' in request.path %}bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold{% else %}text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-blue-600{% endif %}">Specialists</a>
+
+                <div class="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
+                    {% if session.get('user_id') %}
+                    <div
+                        class="px-3 py-4 mb-2 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100/50 dark:border-blue-900/20">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div
+                                class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold overflow-hidden">
+                                {% if session.get('profile_pic') %}
+                                <img src="{{ session.get('profile_pic') }}" alt="Profile"
+                                    class="w-full h-full object-cover">
+                                {% else %}
+                                {{ (session.get('full_name') or session.get('username'))[0] | upper }}
+                                {% endif %}
+                            </div>
+                            <div class="overflow-hidden">
+                                <p class="text-sm font-bold text-gray-900 dark:text-white truncate">
+                                    {{ session.get('full_name') or session.get('username') }}
+                                </p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate">{{
+                                    session.get('username') }}</p>
+                            </div>
+                        </div>
+                        <a href="/logout"
+                            class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-red-50 dark:bg-red-900/10 text-red-500 text-sm font-bold border border-red-100 dark:border-red-900/20 transition-all active:scale-95">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                    {% else %}
+                    <a href="/login"
+                        class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">Login</a>
+                    <a href="/signup"
+                        class="block px-3 py-2 rounded-md text-base font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 font-bold">Sign
+                        Up</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endblock %}
+
+    <!-- Main Content -->
+    <main class="{% block main_padding %}pt-[6.5rem] md:pt-16{% endblock %} min-h-screen animate-fade-in">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Modern Footer -->
+    {% block footer %}
+    <footer class="relative bg-gradient-to-r from-blue-600 to-blue-500 text-white overflow-hidden mt-auto pt-16 pb-24">
+        <!-- Abstract Overlay Pattern -->
+        <div class="absolute inset-0 opacity-10 pointer-events-none">
+            <svg class="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path d="M0 100 C 20 0 50 0 100 100 Z" fill="none" stroke="white" stroke-width="0.5" />
+                <path d="M0 100 C 20 0 50 0 100 100 Z" fill="none" stroke="white" stroke-width="0.5"
+                    transform="translate(0, -10)" />
+                <path d="M0 100 C 20 0 50 0 100 100 Z" fill="none" stroke="white" stroke-width="0.5"
+                    transform="translate(0, -20)" />
+            </svg>
+        </div>
+
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 lg:gap-8">
+
+                <!-- Column 1: Branding -->
+                <div class="col-span-1 md:col-span-2 lg:col-span-1">
+                    <div class="flex items-center gap-2 mb-6">
+                        <div
+                            class="w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm rounded-full p-1 overflow-hidden border border-white/20">
+                            <img src="{{ url_for('static', filename='images/logo4.gif') }}" alt="MedNexus AI Logo"
+                                class="w-full h-full object-cover rounded-full">
+                        </div>
+                        <span class="font-display font-bold text-2xl tracking-tight">MedNexus AI</span>
+                    </div>
+                    <p class="text-blue-100 text-sm leading-relaxed mb-6 font-medium opacity-90">
+                        Your Future of Health. Now. <br>
+                        Advanced neural diagnostics and secure AI consultation at your fingertips.
+                    </p>
+                    <div class="flex space-x-4">
+                        <a href="#"
+                            class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white hover:text-blue-600 transition-all duration-300">
+                            <i class="fab fa-facebook-f text-xs"></i>
+                        </a>
+                        <a href="#"
+                            class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white hover:text-blue-600 transition-all duration-300">
+                            <i class="fab fa-twitter text-xs"></i>
+                        </a>
+                        <a href="#"
+                            class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white hover:text-blue-600 transition-all duration-300">
+                            <i class="fab fa-linkedin-in text-xs"></i>
+                        </a>
+                        <a href="#"
+                            class="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white hover:text-blue-600 transition-all duration-300">
+                            <i class="fab fa-instagram text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Column 2: Quick Links -->
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-6 text-blue-100">Quick Links</h3>
+                    <ul class="space-y-4">
+                        <li><a href="/"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Dashboard</a>
+                        </li>
+                        <li><a href="/specialists"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Our
+                                Specialists</a>
+                        </li>
+                        <li><a href="#"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Patient
+                                Portal</a>
+                        </li>
+                        <li><a href="#"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Medical
+                                Reports</a>
+                        </li>
+                    </ul>
+                </div>
+
+
+                <!-- Column 3: Specialists -->
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-6 text-blue-100">AI Specialists</h3>
+                    <ul class="space-y-4">
+                        <li><a href="/specialists/derma/consult"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Dr.
+                                Zavian (Derma)</a>
+                        </li>
+                        <li><a href="/specialists/ent/consult"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Dr.
+                                Anees (ENT)</a>
+                        </li>
+                        <li><a href="/specialists/psych/consult"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Dr.
+                                Aria (Psych)</a>
+                        </li>
+                        <li><a href="/specialists/pharmacy/consult"
+                                class="text-white hover:text-blue-200 transition-colors opacity-80 hover:opacity-100 text-sm">Dr.
+                                Pharma (Pharmacy)</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Column 5: Contact -->
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider mb-6 text-blue-100">Contact</h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start gap-3 text-sm text-white opacity-90">
+                            <i class="fas fa-map-marker-alt mt-1 text-blue-200"></i>
+                            <span>MedNexus AI Digital Health<br>Available Globally</span>
+                        </li>
+                        <li class="flex items-center gap-3 text-sm text-white opacity-90">
+                            <i class="fas fa-envelope text-blue-200"></i>
+                            <a href="mailto:support@smartaihospital.com"
+                                class="hover:text-blue-100">support@mednexus.ai</a>
+                        </li>
+                        <li class="flex items-center gap-3 text-sm text-white opacity-90">
+                            <i class="fas fa-headset text-blue-200"></i>
+                            <span>24/7 AI Assistance</span>
+                        </li>
+                    </ul>
+                </div>
+
+
+    </footer>
+    {% endblock %}
+
+    <!-- Scripts -->
+    <script>
+        // System Theme Logic (3-State: Light -> Dark -> System)
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeIcons = {
+            light: [document.getElementById('theme-toggle-light-icon'), document.getElementById('mobile-theme-toggle-light-icon')],
+            dark: [document.getElementById('theme-toggle-dark-icon'), document.getElementById('mobile-theme-toggle-dark-icon')]
+        };
+        const mobileThemeToggle = document.getElementById('mobile-theme-toggle');
+
+        // Helper: Get system preference
+        function getSystemTheme() {
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        // Helper: Update icons
+        function updateIcons(currentTheme) {
+            // Hide all first
+            Object.values(themeIcons).flat().forEach(icon => {
+                if (icon) icon.classList.add('hidden');
+            });
+
+            // Show current active icons
+            if (themeIcons[currentTheme]) {
+                themeIcons[currentTheme].forEach(icon => {
+                    if (icon) icon.classList.remove('hidden');
+                });
+            }
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.classList.remove('dark');
+
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+
+            updateIcons(theme);
+            localStorage.setItem('color-theme', theme);
+        }
+
+        // Initialize Type
+        let storedTheme = localStorage.getItem('color-theme');
+        let currentMode = storedTheme ? storedTheme : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        applyTheme(currentMode);
+
+        // Toggle Cycle: Light -> Dark
+        function cycleTheme() {
+            currentMode = (currentMode === 'light') ? 'dark' : 'light';
+            applyTheme(currentMode);
+        }
+
+        // Event Listeners
+        themeToggleBtn.addEventListener('click', cycleTheme);
+        mobileThemeToggle.addEventListener('click', cycleTheme);
+
+        // Mobile Menu Logic
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+
+        btn.addEventListener('click', () => {
+            menu.classList.toggle('hidden');
+        });
+
+        // Close mobile menu when a link is clicked
+        const mobileLinks = menu.querySelectorAll('a');
+        mobileLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                menu.classList.add('hidden');
+            });
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

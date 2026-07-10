@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Dr. Alara | Family & General Medicine — Coming Soon | MedNexus AI{% endblock %}
+
+{% block meta_description %}Dr. Alara, MedNexus AI's Family & General Medicine specialist, is currently under development. Your comprehensive primary care AI is almost ready.{% endblock %}
+
+{% block extra_css %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&display=swap');
+
+  :root {
+    --alara-primary: #0d7377;
+    --alara-light: #14a085;
+    --alara-glow: rgba(13, 115, 119, 0.3);
+  }
+
+  .alara-page {
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f0fdfa 0%, #e6f7f7 40%, #f8fafc 100%);
+  }
+
+  .dark .alara-page {
+    background: linear-gradient(135deg, #0a1628 0%, #0d1f2d 50%, #0a1628 100%);
+  }
+
+  /* Hero glow orbs */
+  .orb-1 {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(13,115,119,0.15) 0%, transparent 70%);
+    top: -200px;
+    right: -200px;
+    animation: orb-pulse 6s ease-in-out infinite;
+  }
+  .orb-2 {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(20,160,133,0.10) 0%, transparent 70%);
+    bottom: -100px;
+    left: -100px;
+    animation: orb-pulse 8s ease-in-out infinite reverse;
+  }
+
+  @keyframes orb-pulse {
+    0%, 100% { transform: scale(1) translate(0,0); opacity: 0.7; }
+    50% { transform: scale(1.15) translate(20px, -20px); opacity: 1; }
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 4px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--alara-primary), var(--alara-light), #6ee7b7);
+    background-size: 200% 100%;
+    animation: progress-shimmer 2s linear infinite;
+  }
+
+  @keyframes progress-shimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* Doctor card */
+  .doc-card {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(13,115,119,0.15);
+    box-shadow: 0 25px 50px -12px rgba(13,115,119,0.1), 0 0 0 1px rgba(13,115,119,0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .dark .doc-card {
+    background: rgba(15, 30, 50, 0.7);
+    border: 1px solid rgba(13,115,119,0.25);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+  }
+
+  /* Feature cards */
+  .feature-card {
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(13,115,119,0.1);
+    transition: all 0.3s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px -8px rgba(13,115,119,0.2);
+    border-color: rgba(13,115,119,0.3);
+  }
+  .dark .feature-card {
+    background: rgba(15, 30, 50, 0.6);
+    border: 1px solid rgba(13,115,119,0.2);
+  }
+  .dark .feature-card:hover {
+    box-shadow: 0 12px 30px -8px rgba(13,115,119,0.3);
+  }
+
+  /* Status badge pulse */
+  .status-dot {
+    animation: dot-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Countdown block */
+  .countdown-block {
+    background: linear-gradient(135deg, rgba(13,115,119,0.08) 0%, rgba(20,160,133,0.05) 100%);
+    border: 1px solid rgba(13,115,119,0.15);
+  }
+  .dark .countdown-block {
+    background: linear-gradient(135deg, rgba(13,115,119,0.15) 0%, rgba(20,160,133,0.08) 100%);
+    border: 1px solid rgba(13,115,119,0.3);
+  }
+
+  /* Timeline dot */
+  .timeline-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--alara-primary);
+    box-shadow: 0 0 0 4px rgba(13,115,119,0.15);
+    flex-shrink: 0;
+  }
+  .timeline-dot.done {
+    background: #10b981;
+    box-shadow: 0 0 0 4px rgba(16,185,129,0.15);
+  }
+  .timeline-dot.pending {
+    background: #94a3b8;
+    box-shadow: 0 0 0 4px rgba(148,163,184,0.15);
+  }
+
+  /* Animated border for the doctor avatar */
+  @keyframes border-spin {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .avatar-wrapper {
+    background: linear-gradient(135deg, #0d7377, #14a085, #6ee7b7, #0d7377);
+    background-size: 300% 300%;
+    animation: border-spin 4s ease infinite;
+    border-radius: 50%;
+    padding: 3px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="alara-page relative overflow-hidden">
+  <!-- Background orbs -->
+  <div class="orb-1 pointer-events-none"></div>
+  <div class="orb-2 pointer-events-none"></div>
+
+  <!-- Grid pattern overlay -->
+  <div class="pointer-events-none absolute inset-0 opacity-[0.03]"
+    style="background-image: linear-gradient(rgba(13,115,119,1) 1px, transparent 1px), linear-gradient(90deg, rgba(13,115,119,1) 1px, transparent 1px); background-size: 50px 50px;">
+  </div>
+
+  <div class="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+
+    <!-- Top badge -->
+    <div class="mb-10 flex justify-center">
+      <span class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-5 py-2 text-xs font-bold uppercase tracking-widest text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-400 shadow-sm">
+        <span class="status-dot relative flex h-2 w-2">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+        </span>
+        Under Active Development
+      </span>
+    </div>
+
+    <!-- Main hero card -->
+    <div class="doc-card rounded-3xl p-8 sm:p-12 mb-10">
+      <div class="flex flex-col items-center gap-8 lg:flex-row lg:items-start">
+
+        <!-- Doctor Avatar -->
+        <div class="flex-shrink-0 flex flex-col items-center gap-4">
+          <div class="avatar-wrapper">
+            <img
+              src="{{ url_for('static', filename='images/gn.webp') }}"
+              alt="Dr. Alara"
+              class="h-32 w-32 rounded-full object-cover sm:h-40 sm:w-40"
+              onerror="this.src='{{ url_for('static', filename='dr_salman.png') }}'"
+            />
+          </div>
+          <!-- Active dev badge -->
+          <div class="flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1.5 dark:bg-teal-900/30">
+            <span class="h-2 w-2 rounded-full bg-teal-500 animate-pulse"></span>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-teal-700 dark:text-teal-400">Dev Build Active</span>
+          </div>
+        </div>
+
+        <!-- Doctor Info -->
+        <div class="flex-1 text-center lg:text-left">
+          <div class="mb-2">
+            <span class="text-[11px] font-bold uppercase tracking-[0.3em]" style="color: var(--alara-primary);">
+              Family &amp; General Medicine
+            </span>
+          </div>
+          <h1 class="text-4xl font-black tracking-tight text-slate-900 dark:text-white sm:text-5xl mb-3">
+            Dr. <span style="color: var(--alara-primary);">Alara</span>
+          </h1>
+          <p class="text-base font-medium text-slate-500 dark:text-slate-400 mb-1">
+            AI Primary Care Physician &amp; Family Health Specialist
+          </p>
+          <p class="text-sm text-slate-400 dark:text-slate-500 max-w-2xl mb-8 leading-relaxed">
+            Dr. Alara is being trained to be your first point of contact for all health concerns — from routine check-ups and basic diagnostics to intelligent specialist referrals. We're building her to be the most comprehensive family health AI on the platform.
+          </p>
+
+          <!-- Progress section -->
+          <div class="mb-6">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Development Progress</span>
+              <span class="text-xs font-black" style="color: var(--alara-primary);">72%</span>
+            </div>
+            <div class="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div class="progress-bar h-full" style="width: 72%;"></div>
+            </div>
+          </div>
+
+          <!-- CTA Buttons -->
+          <div class="flex flex-wrap justify-center gap-4 lg:justify-start">
+            <a href="{{ url_for('specialists') }}"
+              class="inline-flex items-center gap-2 rounded-full px-8 py-3 text-xs font-black tracking-widest text-white shadow-lg transition-all hover:shadow-xl hover:opacity-90 active:scale-95"
+              style="background-color: var(--alara-primary);">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              OTHER SPECIALISTS
+            </a>
+            <a href="{{ url_for('index') }}"
+              class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-8 py-3 text-xs font-black tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              BACK HOME
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-2 gap-4 mb-10 sm:grid-cols-4">
+      {% for stat in [
+        {'label': 'Training Data', 'value': '2.4M+', 'sub': 'Clinical Cases'},
+        {'label': 'Specialties', 'value': '18', 'sub': 'Focus Areas'},
+        {'label': 'ETA', 'value': 'Q3 2026', 'sub': 'Launch Target'},
+        {'label': 'Build Status', 'value': '72%', 'sub': 'Complete'}
+      ] %}
+      <div class="countdown-block rounded-2xl p-5 text-center">
+        <p class="text-2xl font-black text-slate-900 dark:text-white">{{ stat.value }}</p>
+        <p class="text-[9px] font-bold uppercase tracking-widest mt-1" style="color: var(--alara-primary);">{{ stat.label }}</p>
+        <p class="text-[10px] text-slate-400 mt-0.5">{{ stat.sub }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Two-column bottom section -->
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+
+      <!-- Planned Features -->
+      <div>
+        <h2 class="text-xs font-black uppercase tracking-[0.25em] text-slate-400 mb-6">
+          Planned Capabilities
+        </h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {% for feature in [
+            {'icon': '🩺', 'title': 'Health Screening', 'desc': 'Full-body AI health assessments'},
+            {'icon': '💊', 'title': 'Basic Treatment', 'desc': 'First-line treatment protocols'},
+            {'icon': '🔬', 'title': 'Lab Analysis', 'desc': 'Interpret test results instantly'},
+            {'icon': '👨‍👩‍👧', 'title': 'Family Health', 'desc': 'Pediatric to geriatric care'},
+            {'icon': '🗺️', 'title': 'Referrals', 'desc': 'Smart specialist routing'},
+            {'icon': '🛡️', 'title': 'Preventative Care', 'desc': 'Vaccination & wellness plans'}
+          ] %}
+          <div class="feature-card rounded-2xl p-4">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl leading-none mt-0.5">{{ feature.icon }}</span>
+              <div>
+                <p class="text-xs font-black text-slate-800 dark:text-white">{{ feature.title }}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 leading-snug">{{ feature.desc }}</p>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Development Timeline -->
+      <div>
+        <h2 class="text-xs font-black uppercase tracking-[0.25em] text-slate-400 mb-6">
+          Development Roadmap
+        </h2>
+        <div class="space-y-5">
+          {% for item in [
+            {'phase': 'Phase 1', 'title': 'Core Architecture', 'status': 'done', 'desc': 'LLM integration, RAG pipeline, graph state machine'},
+            {'phase': 'Phase 2', 'title': 'Clinical Knowledge Base', 'status': 'done', 'desc': 'Loading 2.4M+ clinical cases into vector store'},
+            {'phase': 'Phase 3', 'title': 'Diagnostic Engine', 'status': 'active', 'desc': 'Symptom checker, triage logic, differential diagnosis builder'},
+            {'phase': 'Phase 4', 'title': 'Report Generation', 'status': 'active', 'desc': 'High-fidelity HTML report template & download system'},
+            {'phase': 'Phase 5', 'title': 'UI & QA Testing', 'status': 'pending', 'desc': 'Chat interface polish, edge-case testing, safety guardrails'},
+            {'phase': 'Phase 6', 'title': 'Public Launch', 'status': 'pending', 'desc': 'Full production release to all MedNexus users'}
+          ] %}
+          <div class="flex gap-4 items-start">
+            <div class="flex flex-col items-center pt-1">
+              <div class="timeline-dot {% if item.status == 'done' %}done{% elif item.status == 'pending' %}pending{% endif %}"></div>
+              {% if not loop.last %}<div class="w-px flex-1 mt-2 mb-0" style="height:24px; background: {% if item.status == 'done' %}#10b981{% elif item.status == 'active' %}var(--alara-primary){% else %}#e2e8f0{% endif %};"></div>{% endif %}
+            </div>
+            <div class="pb-4 flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[9px] font-black uppercase tracking-widest {% if item.status == 'done' %}text-emerald-500{% elif item.status == 'active' %}text-amber-500{% else %}text-slate-400{% endif %}">
+                  {% if item.status == 'done' %}✓ Complete{% elif item.status == 'active' %}⚡ In Progress{% else %}◷ Pending{% endif %}
+                </span>
+                <span class="text-[9px] font-bold text-slate-300 dark:text-slate-600">· {{ item.phase }}</span>
+              </div>
+              <p class="text-xs font-black text-slate-800 dark:text-white mb-0.5">{{ item.title }}</p>
+              <p class="text-[10px] text-slate-400 leading-snug">{{ item.desc }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer note -->
+    <div class="mt-12 text-center">
+      <p class="text-[11px] text-slate-400 dark:text-slate-600">
+        MedNexus AI · Dr. Alara is being built with the same enterprise-grade RAG architecture as our active specialists.
+      </p>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

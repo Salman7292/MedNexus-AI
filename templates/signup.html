@@ -1,0 +1,465 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Sign Up - MedNexus AI{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block navigation %}{% endblock %}
+{% block main_padding %}pt-0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --auth-bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+        --auth-accent-teal: #0891b2;
+        --auth-btn-blue: #2563eb;
+    }
+
+    .auth-split-container {
+        display: flex;
+        min-height: 100vh;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    .dark .auth-split-container {
+        background: #0f172a;
+    }
+
+    /* Left Panel: Vibrant Hero Area */
+    .auth-left-panel {
+        flex: 1.2;
+        display: none;
+        flex-direction: column;
+        background: var(--auth-bg-gradient);
+        position: relative;
+        overflow: hidden;
+    }
+
+    @media (min-width: 1024px) {
+        .auth-left-panel {
+            display: flex;
+        }
+    }
+
+    .auth-pulse-bg {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 140%;
+        height: 140%;
+        background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 60%);
+        z-index: 0;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0.5;
+        }
+
+        50% {
+            transform: translate(-50%, -50%) scale(1.1);
+            opacity: 0.8;
+        }
+    }
+
+    .auth-hero-wrapper {
+        position: relative;
+        z-index: 10;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+
+    .auth-hero-image {
+        max-width: 90%;
+        height: auto;
+        filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.3));
+        margin-bottom: 0.5rem;
+    }
+
+    @keyframes float {
+
+        0%,
+        100% {
+            transform: translateY(0px);
+        }
+
+        50% {
+            transform: translateY(-20px);
+        }
+    }
+
+
+    /* Right Panel: Form Area */
+    .auth-right-panel {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        padding: 2rem;
+        z-index: 20;
+    }
+
+    .auth-form-container {
+        width: 100%;
+        max-width: 400px;
+    }
+
+    /* Social Buttons */
+    .social-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 0.75rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: #475569;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+        background: #ffffff;
+    }
+
+    .dark .social-btn {
+        background: #1e293b;
+        border-color: #334155;
+        color: #cbd5e1;
+    }
+
+    .social-btn:hover {
+        background: #f8fafc;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .dark .social-btn:hover {
+        background: #334155;
+    }
+
+    .social-btn img {
+        width: 20px;
+        height: 20px;
+    }
+
+    .auth-divider {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 1.5rem 0;
+        color: #94a3b8;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .auth-divider::before,
+    .auth-divider::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .dark .auth-divider::before,
+    .dark .auth-divider::after {
+        border-color: #334155;
+    }
+
+    .auth-divider span {
+        padding: 0 1rem;
+    }
+
+    /* Input Styling */
+    .input-group {
+        position: relative;
+        margin-bottom: 1.25rem;
+    }
+
+    .input-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        font-size: 1.1rem;
+        transition: color 0.2s ease;
+    }
+
+    .input-control {
+        width: 100%;
+        padding: 0.875rem 1rem 0.875rem 3rem;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 0.75rem;
+        font-size: 0.9375rem;
+        background: #f8fafc;
+        color: #1e293b;
+        transition: all 0.2s ease;
+    }
+
+    .dark .input-control {
+        background: #1e293b;
+        border-color: #334155;
+        color: #ffffff;
+    }
+
+    .input-control:focus {
+        outline: none;
+        border-color: var(--auth-btn-blue);
+        background: #ffffff;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .dark .input-control:focus {
+        background: #0f172a;
+    }
+
+    .input-control:focus+.input-icon {
+        color: var(--auth-btn-blue);
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 1rem;
+        background: var(--auth-btn-blue);
+        color: #ffffff;
+        border-radius: 0.75rem;
+        font-weight: 800;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.3s ease;
+        margin-top: 1rem;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
+    }
+
+    .btn-submit:hover {
+        background: #1d4ed8;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+    }
+
+    .eye-toggle {
+        position: absolute;
+        right: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 0.25rem;
+    }
+
+    .eye-toggle:hover {
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-split-container">
+    <!-- Left Interaction Panel -->
+    <div class="auth-left-panel">
+        <div class="auth-pulse-bg"></div>
+
+        <div class="auth-hero-wrapper py-12">
+            <!-- Centered Header -->
+            <div class="relative z-20 mb-6 text-center">
+                <h1 class="text-6xl font-black text-white mb-2 tracking-[-0.04em] font-display">
+                    Smart<span class="text-cyan-400">Health.</span>
+                </h1>
+                <p class="text-cyan-100/90 text-xl font-medium tracking-tight">
+                    The Future of AI Healthcare
+                </p>
+            </div>
+
+            <img src="{{ url_for('static', filename='phone.png') }}" alt="Medical App UI" class="auth-hero-image">
+
+            <!-- Motivation / Info Text -->
+            <div class="relative z-20 mt-6 max-w-lg mx-auto px-12 text-center">
+                <p class="text-blue-50/80 text-base leading-loose font-medium font-sans italic opacity-90">
+                    "Join a global ecosystem of intelligent clinical care.
+                    Access specialized diagnostic logic and secure health insights
+                    powered by state-of-the-art neural architectures and medical RAG."
+                </p>
+
+                <!-- Decorative Separator -->
+                <div class="mt-10 mb-8 flex items-center justify-center gap-4">
+                    <div class="h-px w-12 bg-gradient-to-r from-transparent to-cyan-500/50"></div>
+                    <div class="w-2 h-2 rounded-full border border-cyan-500/50"></div>
+                    <div class="h-px w-12 bg-gradient-to-l from-transparent to-cyan-500/50"></div>
+                </div>
+
+                <div
+                    class="flex justify-center gap-6 text-cyan-400/60 text-[11px] font-black uppercase tracking-[0.3em]">
+                    <span>Neural Labs</span>
+                    <span>Secure Data</span>
+                    <span>AI Diagnostics</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right Signup Form Panel -->
+    <div class="auth-right-panel">
+        <div class="auth-form-container">
+            <!-- Form Header -->
+            <div class="text-center mb-8">
+                <div class="flex justify-center mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-50 dark:bg-cyan-900/20 flex items-center justify-center">
+                        <i class="fas fa-user-plus text-cyan-600 animate-pulse text-2xl"></i>
+                    </div>
+                </div>
+                <h2 class="text-3xl font-black text-slate-900 dark:text-white mb-2">Create Account</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Join our global network of intelligent
+                    clinical care.</p>
+            </div>
+
+            {% if error %}
+            <div class="mb-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div
+                    class="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-100 dark:bg-red-900/20 dark:border-red-900/30">
+                    <div
+                        class="flex-shrink-0 w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                        <i class="fas fa-exclamation-circle text-red-600 dark:text-red-400 text-sm"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-red-800 dark:text-red-200">{{ error }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Signup Form -->
+            <form action="/signup" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <div class="input-group">
+                    <i class="fas fa-id-card input-icon"></i>
+                    <input type="email" id="username" name="username" class="input-control"
+                        placeholder="Clinical Email Address" required>
+                </div>
+
+                <div class="input-group">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="password" name="password" class="input-control"
+                        placeholder="Create Secure Password" required>
+                    <span class="eye-toggle" id="password-toggle">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                </div>
+
+                <!-- Password Strength Feedback -->
+                <div id="password-feedback" class="mb-4 hidden text-xs flex flex-col gap-1 px-1 mt-2">
+                    <div class="flex items-center gap-2" id="req-length"><i
+                            class="fas fa-times text-slate-300 w-3"></i><span class="text-slate-500">At least 8
+                            characters</span></div>
+                    <div class="flex items-center gap-2" id="req-uppercase"><i
+                            class="fas fa-times text-slate-300 w-3"></i><span class="text-slate-500">One uppercase
+                            letter</span></div>
+                    <div class="flex items-center gap-2" id="req-lowercase"><i
+                            class="fas fa-times text-slate-300 w-3"></i><span class="text-slate-500">One lowercase
+                            letter</span></div>
+                    <div class="flex items-center gap-2" id="req-number"><i
+                            class="fas fa-times text-slate-300 w-3"></i><span class="text-slate-500">One number</span>
+                    </div>
+                    <div class="flex items-center gap-2" id="req-special"><i
+                            class="fas fa-times text-slate-300 w-3"></i><span class="text-slate-500">One special char
+                            (@$!%*?&)</span></div>
+                </div>
+
+                <div class="mb-6 px-1">
+                    <p class="text-[10px] text-slate-400 leading-relaxed">
+                        By signing up, you agree to our <a href="#" class="text-blue-500 hover:underline">Clinical Terms
+                            of Service</a> and <a href="#" class="text-blue-500 hover:underline">Privacy Policy</a>.
+                    </p>
+                </div>
+
+                <button type="submit" id="submit-btn" class="btn-submit opacity-50 cursor-not-allowed"
+                    disabled>Initialize Profile</button>
+            </form>
+
+            <div class="auth-divider">
+                <span>or</span>
+            </div>
+
+            <!-- Social Signup Placeholders -->
+            <a href="/login/google" class="social-btn no-underline">
+                <img src="https://www.svgrepo.com/show/355037/google.svg" alt="Google">
+                Sign up with Google
+            </a>
+
+            <p class="mt-8 text-center text-sm font-medium text-slate-500 dark:text-slate-400">
+                Already have a profile?
+                <a href="/login" class="text-blue-600 dark:text-blue-400 font-black hover:underline ml-1">Log In</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Password visibility toggle logic
+    const passInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('password-toggle');
+
+    if (toggleBtn && passInput) {
+        toggleBtn.addEventListener('click', () => {
+            const isPass = passInput.type === 'password';
+            passInput.type = isPass ? 'text' : 'password';
+            toggleBtn.querySelector('i').className = isPass ? 'fas fa-eye-slash' : 'fas fa-eye';
+        });
+    }
+
+    // Password Strength Logic
+    const submitBtn = document.getElementById('submit-btn');
+    const feedbackDiv = document.getElementById('password-feedback');
+    const requirements = {
+        length: { id: 'req-length', regex: /.{8,}/ },
+        uppercase: { id: 'req-uppercase', regex: /[A-Z]/ },
+        lowercase: { id: 'req-lowercase', regex: /[a-z]/ },
+        number: { id: 'req-number', regex: /[0-9]/ },
+        special: { id: 'req-special', regex: /[@$!%*?&]/ }
+    };
+
+    if (passInput && submitBtn && feedbackDiv) {
+        passInput.addEventListener('focus', () => {
+            feedbackDiv.classList.remove('hidden');
+        });
+
+        passInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            let allValid = true;
+
+            for (const key in requirements) {
+                const req = requirements[key];
+                const row = document.getElementById(req.id);
+                if (!row) continue;
+                const icon = row.querySelector('i');
+                const text = row.querySelector('span');
+
+                if (req.regex.test(val)) {
+                    icon.className = 'fas fa-check text-green-500 w-3 transition-colors duration-300';
+                    text.className = 'text-green-600 dark:text-green-400 font-medium transition-colors duration-300';
+                } else {
+                    icon.className = 'fas fa-times text-slate-300 w-3 transition-colors duration-300';
+                    text.className = 'text-slate-500 transition-colors duration-300';
+                    allValid = false;
+                }
+            }
+
+            if (allValid && val.length > 0) {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    }
+</script>
+{% endblock %}

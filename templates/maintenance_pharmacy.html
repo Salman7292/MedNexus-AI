@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}MedNexus AI | Dr. Pharma Under Maintenance{% endblock %}
+
+{% block content %}
+<div class="flex min-h-[80vh] items-center justify-center px-4 py-20 flex-col text-center">
+    <!-- Animated Maintenance Icon -->
+    <div class="relative mb-8">
+        <div class="absolute inset-0 animate-ping rounded-full bg-emerald-500/20"></div>
+        <div class="relative flex h-24 w-24 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-12 w-12 text-emerald-600 dark:text-emerald-400">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m-4.25 4.25L5.25 9.75A2.652 2.652 0 019 6L11.42 8.42M11.42 8.42l3.58-3.58A2.652 2.652 0 0118 6l-5.83 5.83m-3.58-3.58l3.58 3.58m0 0l-1.42 1.42M11.42 8.42L8.42 11.42m0 0l-3.58-3.58A2.652 2.652 0 002.25 9.75l5.83 5.83m0-4.25l1.42-1.42" />
+            </svg>
+        </div>
+    </div>
+
+    <!-- Maintenance Text -->
+    <h1 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white sm:text-5xl">
+        Dr. Pharma is <span class="text-emerald-600 dark:text-emerald-400 italic">Coming Soon</span>
+    </h1>
+    
+    <p class="mt-4 max-w-lg text-lg font-medium text-slate-500 dark:text-slate-400">
+        Our AI Pharmacist is currently undergoing a pharmaceutical precision upgrade. We expect to be back online shortly with enhanced drug interaction mapping and dosage analysis.
+    </p>
+
+    <!-- Status Badge -->
+    <div class="mt-8 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400">
+        <span class="relative flex h-2 w-2">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+        </span>
+        SYSTEM MAINTENANCE IN PROGRESS
+    </div>
+
+    <!-- Call to Action -->
+    <div class="mt-12 flex flex-wrap justify-center gap-4">
+        <a href="{{ url_for('specialists') }}" class="rounded-full bg-slate-900 px-8 py-3 text-sm font-black tracking-widest text-white transition-all hover:bg-slate-800 hover:shadow-xl dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
+            VIEW OTHER SPECIALISTS
+        </a>
+        <a href="{{ url_for('index') }}" class="rounded-full border border-slate-200 bg-white px-8 py-3 text-sm font-black tracking-widest text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 dark:hover:bg-slate-900">
+            BACK TO DASHBOARD
+        </a>
+    </div>
+</div>
+{% endblock %}

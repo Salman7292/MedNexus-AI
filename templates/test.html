@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+</head>
+
+<body>
+    <style>
+        /* VIEWPORT LOGIC: Shrinks only for visual preview on small screens */
+        .report-wrap {
+            font-size: clamp(6px, 1.2vw, 11px);
+            width: 100%;
+            max-width: 1000px;
+            margin: auto;
+            line-height: 1.5;
+        }
+
+        /* DOWNLOAD LOGIC: This class is triggered by JS to force a large size during capture */
+        .download-mode {
+            width: 1000px !important;
+            font-size: 11px !important;
+        }
+
+        .rx-box {
+            border: 1px solid #f1f5f9;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .stamp-circle {
+            border: 2px solid rgba(239, 68, 68, 0.4);
+            border-radius: 50%;
+            width: 5em;
+            height: 5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.55em;
+            color: rgba(239, 68, 68, 0.7);
+            transform: rotate(-15deg);
+            font-weight: 900;
+            margin-left: auto;
+        }
+    </style>
+
+    <div id="{report_id}"
+        class="report-wrap relative flex flex-col bg-white font-sans text-slate-800 shadow-2xl dark:bg-gray-950 dark:text-gray-200">
+        <div class="flex w-full flex-row items-center justify-between bg-[#0ea5e9] px-8 py-5 text-white">
+            <div class="flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-inner">
+                    <img src="https://raw.githubusercontent.com/Salman7292/Agentic-AI/refs/heads/main/ai_doctor_logo.gif"
+                        class="h-8 w-8 object-contain" />
+                </div>
+                <div>
+                    <h1 class="text-[1.4em] leading-none font-black tracking-tighter uppercase">Dermatology Clinic</h1>
+                    <p class="text-[0.65em] font-bold tracking-[0.3em] uppercase opacity-90">Consultation Report</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <h2 class="text-[1.4em] leading-none font-black uppercase">Dr. Zavian</h2>
+                <p class="text-[0.7em] font-medium uppercase opacity-90">Consultant Dermatologist</p>
+            </div>
+        </div>
+
+        <div class="z-10 -mt-4 px-8">
+            <div
+                class="grid grid-cols-5 gap-4 rounded-xl border border-slate-100 bg-white p-4 shadow-xl dark:border-gray-800 dark:bg-gray-900">
+                <div>
+                    <p class="text-[0.6em] font-bold text-slate-400 uppercase">Patient</p>
+                    <p class="truncate text-[0.9em] font-black uppercase">{name}</p>
+                </div>
+                <div>
+                    <p class="text-[0.6em] font-bold text-slate-400 uppercase">Age/Sex</p>
+                    <p class="text-[0.9em] font-black">{age} / {gender}</p>
+                </div>
+                <div>
+                    <p class="text-[0.6em] font-bold text-slate-400 uppercase">Location</p>
+                    <p class="text-[0.9em] font-black uppercase">{location}</p>
+                </div>
+                <div>
+                    <p class="text-[0.6em] font-bold text-slate-400 uppercase">Date</p>
+                    <p class="text-[0.9em] font-black">{report_date}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[0.6em] font-bold text-slate-400 uppercase">ID</p>
+                    <p class="text-[0.9em] font-black text-sky-500">{patient_id}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-1 flex-row gap-8 px-8 py-8">
+            <div class="w-[30%] space-y-6 border-r border-slate-50 pr-6 dark:border-gray-800">
+                <section>
+                    <h3 class="mb-2 text-[0.7em] font-black tracking-widest text-sky-500 uppercase">Complaints</h3>
+                    <div class="text-[0.85em] text-slate-500 italic">"{complaints}"</div>
+                </section>
+                <section>
+                    <h3 class="mb-2 text-[0.7em] font-black tracking-widest text-sky-500 uppercase">Clinical Notes</h3>
+                    <div class="text-[0.85em] text-slate-600 dark:text-gray-400">{notes}</div>
+                </section>
+                <section class="mt-auto rounded-lg border border-red-100/20 bg-red-50/40 p-3">
+                    <h3 class="mb-1 text-[0.65em] font-black text-red-600 uppercase">Diagnosis</h3>
+                    <div class="text-[1em] font-black text-slate-900 uppercase dark:text-gray-100">{diagnosis}</div>
+                </section>
+            </div>
+
+            <div class="flex w-[70%] flex-col gap-6">
+                <div>
+                    <div class="mb-2 flex items-center gap-2">
+                        <span
+                            class="font-serif text-[2.8em] leading-none text-slate-800 italic dark:text-gray-100">Rx</span>
+                        <div class="h-px flex-1 bg-slate-100"></div>
+                    </div>
+                    <div class="rx-box shadow-sm">
+                        <table class="w-full">
+                            <thead class="border-b border-slate-100 bg-slate-50 dark:bg-slate-900">
+                                <tr class="text-[0.65em] font-black text-slate-400 uppercase">
+                                    <th class="px-3 py-2 text-left">Medicine</th>
+                                    <th class="px-3 py-2 text-left">Dosage</th>
+                                    <th class="px-3 py-2 text-left">Frequency</th>
+                                    <th class="px-3 py-2 text-right">Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {med_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="rounded-xl border border-amber-100 bg-amber-50/5 p-4">
+                        <h4 class="mb-2 text-[0.7em] font-black text-amber-600 uppercase">Instructions</h4>
+                        <div class="text-slate-600">{formatted_instructions}</div>
+                    </div>
+                    <div class="rounded-xl border border-sky-100 bg-sky-50/5 p-4">
+                        <h4 class="mb-2 text-[0.7em] font-black text-sky-600 uppercase">Treatment Plan</h4>
+                        <div class="text-slate-600">{tx_list_items}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-auto px-8 pb-6">
+            <div class="flex flex-row items-end justify-between border-t border-slate-50 pt-6">
+                <div class="text-[0.6em] font-bold text-slate-400 uppercase">
+                    <p>Verified: {current_date_obj.strftime("%b %d, %Y | %H:%M")}</p>
+                    <p class="mt-1 text-green-500 italic">✔ Secured Digital Signature</p>
+                </div>
+                <div class="relative">
+                    <div class="stamp-circle mb-[-5px]">OFFICIAL<br />VERIFIED<br />STAMP</div>
+                    <div class="w-36 border-t-2 border-slate-900 pt-1 text-center">
+                        <div class="text-[1em] font-black text-slate-900 uppercase">Dr. Zavian</div>
+                        <div class="text-[0.6em] font-bold tracking-tighter text-sky-500 uppercase">Consultant
+                            Specialist</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            class="flex justify-between bg-[#0ea5e9] px-8 py-2 text-[0.55em] font-black tracking-widest text-white uppercase">
+            <span>ID: {report_id}</span>
+            <span>Dermatology Specialist Clinic</span>
+        </div>
+    </div>
+
+    <div class="mt-6 flex w-full justify-center px-6 print:hidden">
+        <button onclick="downloadHighResReport('{report_id}')"
+            class="w-full max-w-sm rounded-xl bg-[#0ea5e9] py-3 text-[1em] font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-[1.02] active:scale-95">Download
+            Full-Size Report</button>
+    </div>
+
+    <script>
+        function downloadHighResReport(id) {
+            const el = document.getElementById(id);
+            // Force the element into a large "Download Mode" before capturing
+            el.classList.add('download-mode');
+
+            // Simulate capture (Replace this with your actual PNG generation logic)
+            console.log("Capturing at 1000px width...");
+
+            // After capture, remove the class to go back to "small screen" preview
+            // el.classList.remove('download-mode');
+        }
+    </script>
+</body>
+
+</html>

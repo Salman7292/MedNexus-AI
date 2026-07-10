@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /specialists/
+Allow: /specialists/*/consult
+Disallow: /history/
+Disallow: /edit
+Disallow: /chat
+Disallow: /threads
+
+Sitemap: {{ url_for('static', filename='sitemap.xml', _external=True) }}
