@@ -1,3 +1,5 @@
+# Requires Python >= 3.10
+
 # Web Framework and Security
 Flask==3.1.2
 Jinja2==3.1.6
@@ -18,15 +20,18 @@ langchain-google-genai==4.2.0
 langgraph==1.0.8
 
 # AI Models and Search API Clients
+groq==0.37.1
 google-generativeai==0.8.6
 moondream==0.2.0
-
+pinecone==7.3.0
 sentence-transformers==5.2.2
+torch==2.10.0
+
+# Tavily Search API
+tavily==1.1.0
 
 # Image Processing
 pillow==10.4.0
-
-
 
 # Utilities
 python-dotenv==1.2.1
