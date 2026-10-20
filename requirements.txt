@@ -1,34 +1,32 @@
 # Web Framework and Security
-Flask>=3.0.0
-Jinja2>=3.1.2
-flask-cors
-Flask-WTF
-Flask-Limiter
-bleach
-authlib
-requests
+Flask==3.1.2
+Jinja2==3.1.6
+flask-cors==6.0.2
+Flask-WTF==1.2.2
+Flask-Limiter==4.1.1
+bleach==6.3.0
+Authlib==1.6.9
+requests==2.32.5
 
 # LangChain and AI Orchestration
-langchain
-langchain-core
-langchain-community
-langchain-groq
-langchain-pinecone
-langchain-huggingface
-langchain-google-genai
-langgraph
+langchain-core==1.2.31
+langchain-community==0.4.1
+langchain-groq==1.1.2
+langchain-pinecone==0.2.13
+langchain-huggingface==1.2.0
+langchain-google-genai==4.2.0
+langgraph==1.0.8
 
 # AI Models and Search API Clients
-google-generativeai
-moondream
-tavily-python
-pinecone-client
-sentence-transformers
+google-generativeai==0.8.6
+moondream==0.2.0
+
+sentence-transformers==5.2.2
 
 # Image Processing
-pillow
-pillow-heif
-pillow-avif-plugin
+pillow==10.4.0
+
+
 
 # Utilities
-python-dotenv
+python-dotenv==1.2.1
