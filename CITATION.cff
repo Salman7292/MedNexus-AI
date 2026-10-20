@@ -1,1 +1,19 @@
 
+cff-version: 1.2.0
+message: "If you use MedNexus AI, please cite the SoftwareX article."
+title: "MedNexus AI"
+authors:
+  - family-names: "Salman"
+    given-names: "Muhammad"
+  - family-names: "Ullah"
+    given-names: "Khalil"
+  - family-names: "Muhammad"
+    given-names: "Dost"
+  - family-names: "Khan"
+    given-names: "Masood"
+  - family-names: "Khan"
+    given-names: "Munsif"
+  - family-names: "Bendechache"
+    given-names: "Malika"
+license: MIT
+repository-code: "https://github.com/Salman7292/MedNexus-AI"
