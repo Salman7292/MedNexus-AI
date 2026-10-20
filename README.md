@@ -1,3 +1,4 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Salman7292/MedNexus-AI/blob/main/LICENSE)
 # MedNexus AI Medical Specialists
 
 MedNexus AI is a comprehensive web platform featuring AI-powered medical specialists (Dermatology, ENT, Psychiatry, Pharmacy, and General Physician) that offer instant, precise diagnostics, care plans, and medical analysis.
