@@ -96,7 +96,4 @@ release and is therefore not documented in this prompt repository. No `prompts/a
 
 ---
 
-## NOT FOUND
 
-No tool prompts were marked NOT FOUND. All 38 files (8 + 8 + 8 + 11 + 3 shared + 1 README) were
-extracted or derived from the source code and are present in the repository.
