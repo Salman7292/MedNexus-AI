@@ -1,0 +1,23 @@
+# Tool: doctor_search_tool
+
+Tool description (docstring from psych_logic.py):
+Search for and locate psychiatrists and medical clinics near the patient.
+Use this tool when the patient provides a location (city, zip code, or address).
+
+Args:
+    location: A string containing the user's location (e.g., 'Buner' or '90210').
+
+--- TOOL SCHEMA ---
+Function name: doctor_search_tool
+Args:
+  location (str): The patient's location (city, zip code, or address).
+Returns:
+  list: Retriever results from the psychiatry geo directory vector store
+        (Pinecone index: psychiatrist-specialist, namespace: psychiatrist_geo_directory).
+        Top-3 similarity results for "psychiatrists and mental health clinics in {location}".
+
+How the tool constructs its search query:
+  final_query = f"psychiatrists and mental health clinics in {location}"
+  Uses similarity retriever with k=3.
+
+Instruction to model: Present results in a clean, professional list of names and locations.

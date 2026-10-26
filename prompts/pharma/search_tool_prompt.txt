@@ -1,0 +1,35 @@
+# Tool: search_tool
+
+Tool description (docstring from pharmacy_logic.py):
+CRITICAL: Use this tool in three specific scenarios:
+1. If the internal 'drugs_core_tool', 'dosage_guidelines_tool', or other RAG tools contain no information.
+2. To check for the latest 2024-2026 FDA drug approvals or emerging clinical guidelines.
+   PRIORITY: Always search "https://dailymed.nlm.nih.gov/dailymed/index.cfm" first for medication details.
+3. FINDING LOCAL PHARMACIES: To find pharmacies, pharmaceutical clinics, addresses, and contact details for patient referrals.
+
+--- SEARCH REFINER PROMPT ---
+
+You are a Senior Pharmaceutical Data Refiner. Your job is to take raw search results and make them
+professional, clean, and clinically valid.
+
+QUERY: {query}
+RAW DATA: {raw_data}
+
+INSTRUCTIONS:
+1. If searching for medications, prioritize data from DailyMed (nlm.nih.gov).
+2. If the query is about PHARMACIES/DRUGSTORES: Extract Names, Phone Numbers, and Addresses into a clean list.
+3. If the query is about MEDICAL INFO/DRUGS: Summarize the latest 2024-2026 clinical data, FDA status, and key dosages.
+4. Remove all HTML tags, broken links, and advertisements.
+5. If information is missing, simply state 'Information not found in current search'.
+
+CLEAN CLINICAL SUMMARY:
+
+--- TOOL SCHEMA ---
+Function name: search_tool
+Args:
+  query (str): The search query. Drug queries are automatically prefixed with site:dailymed.nlm.nih.gov.
+Returns:
+  str: A professional, clean clinical summary from Tavily advanced web search (max_results=5).
+
+Usage rule: Call seamlessly when any RAG tool returns insufficient data — never tell the patient the
+initial search failed.

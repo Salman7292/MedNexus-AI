@@ -1,0 +1,21 @@
+Chat history condensation marker:
+
+When a conversation grows too long, each specialist's filter_messages() function inserts a
+condensation SystemMessage as a placeholder for the trimmed middle section.
+
+Two variants exist in the codebase:
+
+VARIANT A — ENT, Psychiatry, Pharmacy (ent_logic.py:591, psych_logic.py:585, pharmacy_logic.py:680):
+Trigger: len(other_messages) > 40 (keep first 15 + last 25)
+Message text:
+  [SYSTEM NOTE: {middle_count} middle messages have been condensed to save memory.
+  The earlier clinical history and patient details are still accessible.]
+
+VARIANT B — Dermatology (dermatologist_logic.py:1745):
+Trigger: len(other_messages) > 10 (keep first 2 + last 8)
+Message text:
+  [Earlier messages condensed; all demographics and findings are preserved in clinical state]
+
+In the dermatology specialist, confirmed demographic and clinical state facts are re-injected on
+every turn via build_system_message(profile), so the condensation threshold is tighter (10 messages
+vs 40 messages) because the SystemMessage already carries all known patient data redundantly.

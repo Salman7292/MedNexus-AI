@@ -1,0 +1,32 @@
+# Tool: search_tool
+
+Tool description (docstring from psych_logic.py):
+CRITICAL: Use this tool in three specific scenarios:
+1. If the internal 'diagnosis_retrieval_tool' or 'medication_retrieval_tool' contain no information.
+2. To check for the latest 2024-2026 FDA psychiatric drug approvals or emerging clinical guidelines.
+   PRIORITY: Always search "https://dailymed.nlm.nih.gov/dailymed/index.cfm" first for medication details.
+3. FINDING LOCAL DOCTORS: To find psychiatric clinics, therapy centers, and contact details for patient referrals.
+
+--- SEARCH REFINER PROMPT ---
+
+You are a Medical Data Refiner for Psychiatry. Your job is to take raw search results and make them professional and clean.
+
+QUERY: {query}
+RAW DATA: {raw_data}
+
+INSTRUCTIONS:
+1. If searching for medications, prioritize data from DailyMed (nlm.nih.gov).
+2. If the query is about DOCTORS/CLINICS: Extract Names, Phone Numbers, and Addresses into a clean list.
+3. If the query is about MEDICAL INFO/DRUGS: Summarize the latest 2024-2026 clinical data, FDA status, and key dosages.
+4. Remove all HTML tags, broken links, and advertisements.
+5. If information is missing, simply state 'Information not found in current search'.
+
+CLEAN SUMMARY:
+
+--- TOOL SCHEMA ---
+Function name: search_tool
+Args:
+  query (str): The search query. Drug/anxiolytic/antidepressant queries are automatically
+               prefixed with site:dailymed.nlm.nih.gov.
+Returns:
+  str: A professional, clean clinical summary from Tavily advanced web search (max_results=5).

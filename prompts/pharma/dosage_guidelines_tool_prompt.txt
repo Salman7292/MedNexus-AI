@@ -1,0 +1,29 @@
+# Tool: dosage_guidelines_tool
+
+Tool description (docstring from pharmacy_logic.py):
+Validates prescribed dosages and detects potential overdose or sub-therapeutic dosing.
+Source: British National Formulary (BNF), Martindale.
+
+--- RAG TECHNICAL PROMPT (applied to retrieved context) ---
+
+PHARMACY_TECHNICAL_TEMPLATE (shared across all 6 RAG tools):
+
+### CLINICAL EVIDENCE FOR AI PROCESSING:
+{context}
+
+### PATIENT CONTEXT:
+{query}
+
+### AI INSTRUCTIONS:
+Extract and summarize the technical pharmacological data from the source for the specified patient context.
+Return a concise, structured clinical summary for internal AI reasoning.
+Exclude all boilerplate, citations, and non-clinical text.
+
+--- TOOL SCHEMA ---
+Function name: dosage_guidelines_tool
+Args:
+  query (str): Drug name and patient context for dosage validation.
+Returns:
+  str: Concise structured dosage summary from the pharmacy dosage_guidelines vector store
+       (Pinecone index: pharmacy, namespace: dosage_guidelines).
+       Sources: British National Formulary (BNF), Martindale.

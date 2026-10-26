@@ -1,0 +1,23 @@
+## Prompt: anatomical region
+
+Look at this image. What part of the human body is shown?
+Be specific (e.g., 'nose', 'cheek', 'forehead', 'chin', 'lips', 'ear', 'eye area', 'neck', 'arm', 'hand', 'leg', 'foot', 'back', 'chest', 'abdomen').
+If this is a printed medical document, lab test result, or paper report rather than a skin photograph, answer 'medical document'.
+If this is a non-human object or animal, answer 'other'.
+If you cannot determine the body part, answer 'uncertain'.
+Reply with the body part or category in one short phrase.
+
+## Prompt: visible lesion morphology
+
+Examine this image with strict clinical objectivity:
+(a) Is there a distinct visible lesion, bump, rash, or skin abnormality?
+(b) If yes, describe its apparent location, shape, borders, color (redness/erythema), and surface features (raised vs flat, scaling, crusting, erosion, ulceration, swelling).
+(c) If no distinct lesion is identifiable, state clearly that no focal lesion is seen.
+(d) If this is a medical document, summarize the written test names, values, and diagnoses.
+(e) Note any image quality limitations. Do not guess a medical diagnosis.
+
+---
+NOTE: Both prompts are passed sequentially to the Moondream VLM via model.query(image, prompt).
+The first prompt identifies the body part or document type; the second extracts clinical findings.
+Results feed into create_image_analysis_json() which constructs a structured JSON analysis object.
+Source: dermatologist_logic.py lines 730-752 (inside analyze_skin_or_report_image tool).

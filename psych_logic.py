@@ -15,6 +15,7 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from retrieval_service import retrieve_with_rerank
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 # Checkpoint
@@ -74,7 +75,7 @@ class ChatbotState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
 llm = ChatGroq(
-    model="meta-llama/llama-4-scout-17b-16e-instruct",
+    model="openai/gpt-oss-120b",
     temperature=0,
     streaming=True,
     api_key=GROQ_API_KEY
@@ -127,8 +128,7 @@ def diagnosis_retrieval_tool(query: str) -> str:
     Retrieves comprehensive diagnostic information from the psychiatric diagnosis vector store.
     Use for: Unconfirmed mental health conditions, symptom identification, and differential diagnosis.
     """
-    retriever = get_diagnosis_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(get_diagnosis_store(), query)
     return process_clinical_search(query, docs)
 
 @tool
@@ -137,8 +137,7 @@ def medication_retrieval_tool(query: str) -> str:
     Retrieves pharmacological treatments, psychotherapy protocols, and dosages from the medication store.
     Use for: Confirmed psychiatric conditions, drug names (antidepressants, anxiolytics, etc.), and treatment safety.
     """
-    retriever = get_medication_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(get_medication_store(), query)
     return process_clinical_search(query, docs)
 
 @tool

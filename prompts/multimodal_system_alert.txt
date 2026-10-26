@@ -1,0 +1,25 @@
+Runtime multimodal system alert format:
+
+When a user uploads an image, the Flask application (app.py line 680) injects the following
+structured alert into the human message content before it is sent to the LangGraph agent:
+
+  [System Alert: User uploaded an image. Local Path: {local_path}] {message_content}
+
+The specialist agents (dermatologist_logic.py line 1971, ent_logic.py line 207,
+psych_logic.py line 201, pharmacy_logic.py line 234) extract the local_path from this alert
+using the regex:
+
+  \[System Alert: User uploaded an image\.\s*Local Path:\s*([^\]]+)\]
+
+Tool-level instruction (in each VLM tool's docstring):
+  "You MUST use the EXACT file path provided in the '[System Alert: User uploaded an image. Local Path: ...]' message.
+   Copy the path character-for-character.
+   DO NOT make up, guess, or hallucinate a path. If you don't see a [System Alert] with a path, do not use this tool."
+
+Dermatologist additionally generates:
+  [Active Image Analysis - {image_id}]:
+  {obs_json}
+injected as a SystemMessage after automatic pre-analysis (dermatologist_logic.py line 1985-1988).
+
+The alert is stripped from the visible chat display by app.py line 701:
+  content = re.sub(r'\[System Alert:[^\]]+\]', '', str(content)).strip()

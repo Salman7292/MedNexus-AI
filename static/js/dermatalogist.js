@@ -1026,13 +1026,23 @@ async function loadHistory(threadId) {
 
     try {
         const response = await fetch(`/history/${threadId}?specialist=derma`);
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}`);
+        }
         const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
 
         if (data.messages && data.messages.length > 0) {
             data.messages.forEach(msg => {
-                // Filter out empty AI messages from history
-                if (msg.role === 'ai' && (!msg.content || msg.content.trim() === '')) {
-                    return;
+                // Filter out empty AI messages — safely handle both string and object content
+                if (msg.role === 'ai') {
+                    const contentStr = typeof msg.content === 'string' ? msg.content : '';
+                    if (!msg.content || (typeof msg.content === 'string' && contentStr.trim() === '')) {
+                        return;
+                    }
                 }
                 appendMessage(msg.role, msg.content, false, msg.index);
             });
@@ -1813,6 +1823,11 @@ async function sendMessage() {
                             appendLog('tool_end', event);
                         } else if (event.type === 'error') {
                             appendLog('error', event);
+                            if (!firstTokenReceived) {
+                                removeTypingIndicator();
+                                aiContentDiv = appendMessage('ai', 'Our clinical service experienced a brief delay. Your message and information have been preserved. Please try sending your message again.');
+                                firstTokenReceived = true;
+                            }
                         }
                     } catch (e) {
                         console.error('Error parsing SSE event', e);
@@ -1840,6 +1855,11 @@ async function sendMessage() {
         } else {
             console.error("Fetch error:", err);
             appendLog('error', { content: "Failed to connect to server." });
+            if (!firstTokenReceived) {
+                removeTypingIndicator();
+                appendMessage('ai', 'Connection interruption. Your consultation details are safely preserved. Please check your network and try again.');
+                firstTokenReceived = true;
+            }
         }
         removeTypingIndicator(); // Remove indicator on error/abort
     } finally {

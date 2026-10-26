@@ -15,6 +15,7 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from retrieval_service import retrieve_with_rerank
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pinecone import Pinecone
@@ -61,7 +62,7 @@ class ChatbotState(TypedDict):
 # Initialize LLM (Optimized for Pharmacy Knowledge)
 
 llm = ChatGroq(
-    model="meta-llama/llama-4-scout-17b-16e-instruct",
+    model="openai/gpt-oss-120b",
     temperature=0,
     streaming=True,
     api_key=GROQ_API_KEY
@@ -167,8 +168,7 @@ def drugs_core_tool(query: str) -> str:
     Retrieves central knowledge, drug identification, and basic clinical understanding.
     Source: Goodman & Gilman’s, Martindale, Katzung's Pharmacology.
     """
-    retriever = drugs_core_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(drugs_core_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 @tool
@@ -177,8 +177,7 @@ def dosage_guidelines_tool(query: str) -> str:
     Validates prescribed dosages and detects potential overdose or sub-therapeutic dosing.
     Source: British National Formulary (BNF), Martindale.
     """
-    retriever = dosage_guidelines_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(dosage_guidelines_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 @tool
@@ -187,8 +186,7 @@ def drug_interactions_tool(query: str) -> str:
     Detects harmful drug-drug interactions and assigns severity risk levels.
     Primary Source: Stockley’s Drug Interactions.
     """
-    retriever = drug_interactions_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(drug_interactions_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 @tool
@@ -197,8 +195,7 @@ def contraindications_tool(query: str) -> str:
     Identifies unsafe conditions such as Pregnancy, Kidney/Liver disease, or Allergies.
     Source: BNF, Martindale, Toxicology texts.
     """
-    retriever = contraindications_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(contraindications_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 @tool
@@ -207,8 +204,7 @@ def side_effects_toxicity_tool(query: str) -> str:
     Provides data on side effects, adverse reactions, toxicity risks, and overdose symptoms.
     Source: Goodman & Gilman’s, BNF, Martindale.
     """
-    retriever = side_effects_toxicity_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(side_effects_toxicity_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 @tool
@@ -217,8 +213,7 @@ def clinical_guidelines_tool(query: str) -> str:
     Checks if a prescription follows standard medical practice and disease-specific treatment protocols.
     Source: Merck Manual, Katzung's, BNF.
     """
-    retriever = clinical_guidelines_store().as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    docs = retrieve_with_rerank(clinical_guidelines_store(), query)
     return process_pharmacy_clinical_search(query, docs)
 
 # # Lazy loading for Moondream

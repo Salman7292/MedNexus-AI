@@ -1,0 +1,18 @@
+## Prompt: psychiatric document / OCR analysis
+
+Check if this image is a medical report or a clinical document.
+IF A REPORT: Transcribe all text, dates, findings, and diagnostic codes exactly.
+Focus on psychiatric or mental health-related content.
+
+---
+NOTE: This single prompt is passed to the Moondream VLM via model.query(image, analysis_prompt).
+Source: psych_logic.py lines 228-232 (inside analyze_medical_report_image tool).
+
+Tool docstring instruction:
+- You MUST use the EXACT file path provided in the "[System Alert: User uploaded an image. Local Path: ...]" message.
+- Copy the path character-for-character.
+- DO NOT make up, guess, or hallucinate a path (like 'D:\\tmp\\'). If you don't see a [System Alert] with a path, do not use this tool.
+
+NOTE on scope: This tool is document/OCR-only. Dr. Aria does not receive skin-photo or ENT-photo
+prompts. There is no standalone crisis-classification VLM prompt in psych_logic.py.
+Distress detection is handled entirely within the system prompt (see system_prompt.txt).

@@ -3,9 +3,12 @@
 # Web Framework and Security
 Flask==3.1.2
 Jinja2==3.1.6
+Werkzeug==3.1.9
 flask-cors==6.0.2
 Flask-WTF==1.2.2
+WTForms==3.2.2
 Flask-Limiter==4.1.1
+limits==5.8.0
 bleach==6.3.0
 Authlib==1.6.9
 requests==2.32.5
@@ -13,25 +16,51 @@ requests==2.32.5
 # LangChain and AI Orchestration
 langchain-core==1.2.31
 langchain-community==0.4.1
+langchain-classic==1.0.4
+langchain-text-splitters==1.1.2
 langchain-groq==1.1.2
 langchain-pinecone==0.2.13
 langchain-huggingface==1.2.0
 langchain-google-genai==4.2.0
+langchain-openai==1.1.14
 langgraph==1.0.8
+langgraph-prebuilt==1.0.8
+langgraph-checkpoint==4.3.0
+langgraph-checkpoint-sqlite==3.1.2
+langgraph-sdk==0.3.15
+langsmith==0.14.12
 
 # AI Models and Search API Clients
 groq==0.37.1
 google-generativeai==0.8.6
+google-genai==1.75.0
 moondream==0.2.0
+openai==2.54.0
 pinecone==7.3.0
+pinecone-plugin-assistant==1.8.0
+pinecone-plugin-interface==0.0.7
 sentence-transformers==5.2.2
+transformers==4.57.6
+tokenizers==0.22.2
+tiktoken==0.14.0
 torch==2.10.0
 
-# Tavily Search API
+# Search APIs and Vector Stores
 tavily==1.1.0
+sqlite-vec==0.1.9
+SQLAlchemy==2.0.55
 
 # Image Processing
 pillow==10.4.0
 
-# Utilities
+# Utilities & Core Dependencies
 python-dotenv==1.2.1
+pydantic==2.14.1
+pydantic-settings==2.15.0
+numpy==2.2.6
+scipy==1.15.3
+scikit-learn==1.7.2
+huggingface_hub==0.36.2
+safetensors==0.8.0
+httpx==0.28.1
+aiohttp==3.14.5

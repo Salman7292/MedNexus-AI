@@ -1,0 +1,28 @@
+# Tool: doctor_search_tool
+
+Tool description (docstring from dermatologist_logic.py):
+Searches for verified dermatology clinics and specialists in the patient's area.
+Use this tool when the patient explicitly requests local referrals or clinic information.
+
+--- TOOL SCHEMA ---
+Function name: doctor_search_tool
+Args:
+  location (str): The patient's location (city, region, or zip code).
+Returns:
+  str: A formatted list of verified dermatology resources near the specified location,
+       or guidance to the AAD directory if no local results are found.
+
+How the tool constructs its search query:
+  query = f"dermatology clinic hospital {clean_location} address phone contact"
+
+Return format when results found:
+  "Verified Dermatology Resources near {clean_location}:\n\n"
+  + bullet list of: "• **{title}**\n  Details: {content[:180]}...\n  Reference: {url}"
+  + "\n\n*Note: MedNexus AI does not share patient records or medical reports with external clinics without explicit patient consent.*"
+
+Return format when no results:
+  Guidance to visit https://find-a-derm.aad.org/ (American Academy of Dermatology directory)
+  and contact regional public hospital for referral.
+  "*Privacy Assurance: Your consultation details are strictly private and never shared externally without your explicit consent.*"
+
+Instruction to model: Never invent clinic names or phone numbers. Explicitly note privacy assurance.

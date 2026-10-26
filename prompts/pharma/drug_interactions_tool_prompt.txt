@@ -1,0 +1,29 @@
+# Tool: drug_interactions_tool
+
+Tool description (docstring from pharmacy_logic.py):
+Detects harmful drug-drug interactions and assigns severity risk levels.
+Primary Source: Stockley's Drug Interactions.
+
+--- RAG TECHNICAL PROMPT (applied to retrieved context) ---
+
+PHARMACY_TECHNICAL_TEMPLATE (shared across all 6 RAG tools):
+
+### CLINICAL EVIDENCE FOR AI PROCESSING:
+{context}
+
+### PATIENT CONTEXT:
+{query}
+
+### AI INSTRUCTIONS:
+Extract and summarize the technical pharmacological data from the source for the specified patient context.
+Return a concise, structured clinical summary for internal AI reasoning.
+Exclude all boilerplate, citations, and non-clinical text.
+
+--- TOOL SCHEMA ---
+Function name: drug_interactions_tool
+Args:
+  query (str): Drug names or combination query for interaction detection.
+Returns:
+  str: Concise structured interaction summary from the pharmacy drug_interactions vector store
+       (Pinecone index: pharmacy, namespace: drug_interactions).
+       Primary Source: Stockley's Drug Interactions.

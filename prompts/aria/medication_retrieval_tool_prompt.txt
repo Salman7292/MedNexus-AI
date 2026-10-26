@@ -1,0 +1,34 @@
+# Tool: medication_retrieval_tool
+
+Tool description (docstring from psych_logic.py):
+Retrieves pharmacological treatments, psychotherapy protocols, and dosages from the medication store.
+Use for: Confirmed psychiatric conditions, drug names (antidepressants, anxiolytics, etc.), and treatment safety.
+
+--- RAG CLINICAL PROMPT (applied to retrieved context) ---
+
+CLINICAL_PROMPT_TEMPLATE (shared with diagnosis_retrieval_tool):
+
+You are a Senior Psychiatric Assistant. Your goal is to extract and summarize medical information
+from the provided context to answer a doctor's query accurately.
+
+### CONTEXT FROM VECTOR STORE:
+{context}
+
+### DOCTOR'S QUERY:
+{query}
+
+### INSTRUCTIONS:
+- If the context contains the answer, provide it clearly.
+- Use **Bold** for drug names and *Italics* for dosages.
+- Include "First-line", "Second-line", and "Contraindications" if available.
+- Structure the response with clear headings or a table.
+
+### CLINICAL SUMMARY:
+
+--- TOOL SCHEMA ---
+Function name: medication_retrieval_tool
+Args:
+  query (str): Clinical query describing the medication or treatment/therapy topic (e.g., antidepressants, CBT protocols).
+Returns:
+  str: Structured pharmacological/therapy summary from the psychiatric medication vector store
+       (Pinecone index: psychiatrist-specialist, namespace: medication_knowledge).

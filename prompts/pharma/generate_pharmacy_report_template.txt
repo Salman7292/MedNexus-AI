@@ -1,0 +1,33 @@
+# Tool: generate_pharmacy_report
+
+Tool description (docstring from pharmacy_logic.py):
+Generates a formal, customized AI Pharmaceutical Analysis Report in HTML/Tailwind format.
+Includes specific sections for Diagnosis, Medications, Treatment Plan, Safety, MTM, and Follow-up.
+
+--- REPORT SCHEMA ---
+The model must pass these named arguments when calling generate_pharmacy_report:
+
+  name                (str, default "Valued Patient"): Patient's full name.
+  age                 (str, default "Not Specified"):  Patient's age.
+  gender              (str, default "Not Specified"):  Patient's gender.
+  patient_id          (str, default "MED-X-AUTO"):     Unique clinic ID.
+  location            (str, default "Global"):         Patient's city or region.
+  condition           (str, default "Review of Clinical Data"): Identified clinical condition/context.
+  medications         (list, default []):              List of dicts. Each dict should use keys:
+                                                       {"name": "...", "use": "...", "dosage": "...", "side_effects": "..."}
+  treatment_plan      (list, default []):              List of strings — at least 5 distinct treatment steps.
+  safety_interactions (str): Summary of drug-drug interaction findings.
+  mtm_review          (str): Medication Therapy Management review text.
+  follow_up_date      (str): Follow-up schedule string.
+  conclusion          (str): Clinical conclusion paragraph.
+  pharmacist_notes    (str): Additional pharmacist notes / disclaimers.
+
+--- FIELD VALIDATION RULES ---
+- Call ONLY after the user explicitly approves ("Yes", "Go ahead", "Approved", or similar).
+- Populate all fields from tool results gathered in Phase 2 & 3.
+- Do not leave any field as its default placeholder unless the data genuinely does not exist.
+
+--- POST-GENERATION INSTRUCTION ---
+After the tool executes, say ONLY:
+'I have generated your detailed pharmaceutical analysis report. You can download it below.'
+Then STOP.

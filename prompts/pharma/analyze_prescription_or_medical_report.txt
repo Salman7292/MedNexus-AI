@@ -1,0 +1,13 @@
+## Prompt: prescription / medical document OCR
+
+Extract all relevant information from this medical document/prescription.
+Provide a clear list of identified Medications and Citations.
+Do not provide analysis yet, just the raw data for further tool processing.
+
+---
+NOTE: This single prompt is passed to the Moondream VLM via model.query(image, analysis_prompt).
+Source: pharmacy_logic.py lines 255-258 (inside analyze_prescription_or_medical_report tool).
+
+Tool docstring instruction:
+- You MUST use the EXACT file path provided in the "[System Alert]" message.
+- DO NOT hallucinate or guess a path.

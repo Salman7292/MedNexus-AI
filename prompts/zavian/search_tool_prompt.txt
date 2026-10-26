@@ -1,0 +1,29 @@
+# Tool: search_tool
+
+Tool description (docstring from dermatologist_logic.py):
+Searches authoritative medical reference sources (such as DailyMed/NIH) for recent clinical guidelines or medication labeling.
+
+--- INTERNAL SEARCH REFINER PROMPT ---
+
+You are a Medical Data Refiner for Dermatology.
+Synthesize the raw search results into concise internal notes.
+
+QUERY: {query}
+RAW DATA: {raw_data}
+
+INSTRUCTIONS:
+1. Prioritize authoritative FDA labeling from DailyMed (nlm.nih.gov).
+2. Summarize clinical guidelines, indications, and documented precautions.
+3. Remove advertising, marketing claims, and unverified forums.
+4. If reliable data is not found, state 'Reliable clinical data not found in current search'.
+
+CLEAN SUMMARY:
+
+--- TOOL SCHEMA ---
+Function name: search_tool
+Args:
+  query (str): The search query. If the query contains drug/medication keywords, the tool prepends a DailyMed site filter automatically.
+Returns:
+  str: A concise, clean clinical summary derived from web search results.
+
+Usage rule: Use when internal RAG tools return no results, to check 2024-2026 FDA updates, or to find local dermatology clinics.

@@ -1,0 +1,15 @@
+Context-only instruction (no tool calls permitted):
+
+This instruction is injected when the system determines that no RAG or web tool call is needed —
+for example, when answering from the confirmed patient state already held in the SystemMessage.
+
+Instruction text (used internally by all four specialists):
+"Answer using only the confirmed patient information and clinical context already available.
+Do not call any retrieval or search tool for this response."
+
+NOTE: The term "context_only_instruction" does not appear as a named string in the source code.
+This behaviour is enforced structurally: dermatologist_logic.py, ent_logic.py, psych_logic.py, and
+pharmacy_logic.py all carry explicit FALLBACK clauses in their system prompts — "Use internal knowledge
+ONLY if tools return 'No results found'" — which cause the LLM to respond from context when the
+retrieval graph branch returns an empty result. There is no separate tool or file that applies this
+instruction at runtime; it is embedded in each specialist's system prompt.

@@ -77,9 +77,20 @@ google = oauth.register(
 def get_user_db_connection():
     conn = sqlite3.connect('users.db')
     conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            full_name TEXT,
+            profile_pic TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
     # Migration: Add full_name and profile_pic if they don't exist
     try:
-        c = conn.cursor()
         c.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
         c.execute("ALTER TABLE users ADD COLUMN profile_pic TEXT")
         conn.commit()
@@ -452,22 +463,33 @@ def get_history(thread_id):
             role = "user"
             if isinstance(msg, AIMessage):
                 role = "ai"
+                # Skip tool-call-only AI messages (empty content) — internal LangGraph routing
+                content_text = msg.content if isinstance(msg.content, str) else ""
+                if msg.tool_calls and not content_text.strip():
+                    continue
             elif isinstance(msg, ToolMessage):
                 if msg.name in ["generate_medical_report", "generate_pharmacy_report"]:
                     role = "ai"
-                else: continue
-            elif isinstance(msg, SystemMessage): continue
+                else:
+                    continue
+            elif isinstance(msg, SystemMessage):
+                continue
+
             content = msg.content
+            # Normalize list content (multimodal messages)
             if isinstance(content, list):
                 content = " ".join([c.get('text', '') if isinstance(c, dict) else str(c) for c in content])
-            
-            # Image Path Extraction
-            if role == "user" and "[System Alert: User uploaded an image. Local Path:" in content:
+            # Guard against None content
+            if content is None:
+                content = ""
+
+            # Image Path Extraction for user messages with uploaded images
+            if role == "user" and isinstance(content, str) and "[System Alert: User uploaded an image. Local Path:" in content:
                 import re
                 match = re.search(r'\[System Alert: User uploaded an image\. Local Path: (.*?)\] (.*)', content)
                 if match:
-                    filename = os.path.basename(match.group(1))
-                    content = {"text": match.group(2), "image": f"{upload_path}{filename}"}
+                    filename = os.path.basename(match.group(1).strip())
+                    content = {"text": match.group(2).strip(), "image": f"{upload_path}{filename}"}
 
             history.append({"role": role, "content": content, "index": idx})
         return jsonify({"messages": history})
@@ -520,6 +542,7 @@ def edit_message():
         
         # Re-run chat logic with the new message
         def generate():
+            yielded_tokens = 0
             try:
                 old_msg = messages[message_index]
                 image_path_match = None
@@ -546,14 +569,21 @@ def edit_message():
                         if isinstance(message, ToolMessage):
                             yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': message.name, 'output': message.content, 'tool_call_id': message.tool_call_id})}\n\n"
                             if message.name in ["generate_medical_report", "generate_pharmacy_report"]:
+                                 yielded_tokens += 1
                                  yield f"data: {json.dumps({'type': 'token', 'content': message.content})}\n\n"
                         if isinstance(message, AIMessage) and message.content:
                             content = message.content
                             if isinstance(content, list):
                                 content = " ".join([c.get('text', '') if isinstance(c, dict) else str(c) for c in content])
+                            yielded_tokens += 1
                             yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+
+                if yielded_tokens == 0:
+                    yield f"data: {json.dumps({'type': 'token', 'content': 'I have updated your message and noted the changes.'})}\n\n"
+
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                yield f"data: {json.dumps({'type': 'token', 'content': 'Service interruption occurred. Your changes were recorded; please try again.'})}\n\n"
         
         return Response(generate(), mimetype='text/event-stream')
         
@@ -640,6 +670,7 @@ def chat():
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
     def generate():
+        yielded_tokens = 0
         try:
             chatbot_compiled = current_logic.chatbot_compiled
             
@@ -661,14 +692,25 @@ def chat():
                     if isinstance(message, ToolMessage):
                         yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': message.name, 'output': message.content, 'tool_call_id': message.tool_call_id})}\n\n"
                         if message.name in ["generate_medical_report", "generate_pharmacy_report"]:
+                             yielded_tokens += 1
                              yield f"data: {json.dumps({'type': 'token', 'content': message.content})}\n\n"
                     if isinstance(message, AIMessage) and message.content:
                         content = message.content
                         if isinstance(content, list):
                             content = " ".join([c.get('text', '') if isinstance(c, dict) else str(c) for c in content])
-                        yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                        content = re.sub(r'\[System Alert:[^\]]+\]', '', str(content)).strip()
+                        if content:
+                            yielded_tokens += 1
+                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+
+            if yielded_tokens == 0:
+                fallback_text = "I have noted your information. To assist you accurately, could you tell me more about what you are observing?"
+                yield f"data: {json.dumps({'type': 'token', 'content': fallback_text})}\n\n"
+
         except Exception as e:
+            fallback_error = "I apologize, but our clinical service experienced a brief interruption. Your consultation details have been safely preserved. Please send your message again so we can continue."
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'token', 'content': fallback_error})}\n\n"
             
     return Response(generate(), mimetype='text/event-stream')
 

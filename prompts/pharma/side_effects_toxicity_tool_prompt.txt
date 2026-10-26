@@ -1,0 +1,29 @@
+# Tool: side_effects_toxicity_tool
+
+Tool description (docstring from pharmacy_logic.py):
+Provides data on side effects, adverse reactions, toxicity risks, and overdose symptoms.
+Source: Goodman & Gilman's, BNF, Martindale.
+
+--- RAG TECHNICAL PROMPT (applied to retrieved context) ---
+
+PHARMACY_TECHNICAL_TEMPLATE (shared across all 6 RAG tools):
+
+### CLINICAL EVIDENCE FOR AI PROCESSING:
+{context}
+
+### PATIENT CONTEXT:
+{query}
+
+### AI INSTRUCTIONS:
+Extract and summarize the technical pharmacological data from the source for the specified patient context.
+Return a concise, structured clinical summary for internal AI reasoning.
+Exclude all boilerplate, citations, and non-clinical text.
+
+--- TOOL SCHEMA ---
+Function name: side_effects_toxicity_tool
+Args:
+  query (str): Drug name and patient context for side effect / toxicity profiling.
+Returns:
+  str: Concise structured toxicity summary from the pharmacy side_effects_toxicity vector store
+       (Pinecone index: pharmacy, namespace: side_effects_toxicity).
+       Sources: Goodman & Gilman's, BNF, Martindale.

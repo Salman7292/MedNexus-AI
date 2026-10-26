@@ -1,0 +1,29 @@
+# Tool: drugs_core_tool
+
+Tool description (docstring from pharmacy_logic.py):
+Retrieves central knowledge, drug identification, and basic clinical understanding.
+Source: Goodman & Gilman's, Martindale, Katzung's Pharmacology.
+
+--- RAG TECHNICAL PROMPT (applied to retrieved context) ---
+
+PHARMACY_TECHNICAL_TEMPLATE:
+
+### CLINICAL EVIDENCE FOR AI PROCESSING:
+{context}
+
+### PATIENT CONTEXT:
+{query}
+
+### AI INSTRUCTIONS:
+Extract and summarize the technical pharmacological data from the source for the specified patient context.
+Return a concise, structured clinical summary for internal AI reasoning.
+Exclude all boilerplate, citations, and non-clinical text.
+
+--- TOOL SCHEMA ---
+Function name: drugs_core_tool
+Args:
+  query (str): Drug name or clinical question for core pharmacological reference lookup.
+Returns:
+  str: Concise structured clinical summary from the pharmacy drugs_core vector store
+       (Pinecone index: pharmacy, namespace: drugs_core).
+       Sources: Goodman & Gilman's, Martindale, Katzung's Pharmacology.

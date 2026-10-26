@@ -1,0 +1,15 @@
+## Prompt: ENT image or report analysis
+
+Check if this image is a medical report or a medical photo related to ENT (ear, nose, throat).
+IF A REPORT: Transcribe or extract all text, dates, and values exactly.
+IF AN ENT PHOTO: Describe the findings in the ear, nose, or throat,
+noting any swelling, redness, discharge, or inflammation.
+
+---
+NOTE: This single prompt is passed to the Moondream VLM via model.query(image, analysis_prompt).
+Source: ent_logic.py lines 233-238 (inside analyze_ent_or_report_image tool).
+
+Tool docstring instruction:
+- You MUST use the EXACT file path provided in the "[System Alert: User uploaded an image. Local Path: ...]" message.
+- Copy the path character-for-character.
+- DO NOT make up, guess, or hallucinate a path (like 'D:\\tmp\\'). If you don't see a [System Alert] with a path, do not use this tool.

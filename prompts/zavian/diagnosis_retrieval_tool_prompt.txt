@@ -1,0 +1,34 @@
+# Tool: diagnosis_retrieval_tool
+
+Tool description (docstring from dermatologist_logic.py):
+Retrieves internal clinical evidence and differential diagnoses from the dermatology diagnosis store.
+Use after sufficient clinical history has been gathered to explore differential possibilities.
+
+--- RAG SUMMARISER PROMPT (applied to retrieved context) ---
+
+DIAGNOSIS_SUMMARY_PROMPT:
+
+You are a Senior Dermatological Clinical Assistant.
+Analyze the following retrieved dermatological knowledge and synthesize an INTERNAL clinical summary for differential diagnosis.
+
+CONTEXT FROM CLINICAL KNOWLEDGE BASE:
+{context}
+
+PATIENT SYMPTOMS & CLINICAL HISTORY:
+{query}
+
+STRICT INSTRUCTIONS:
+1. Identify 2 to 3 plausible DIFFERENTIAL DIAGNOSES based on the findings.
+2. DO NOT declare any single disease confirmed. Highlight uncertainties and atypical presentations.
+3. For each condition, list key SUPPORTING evidence and MISSING/CONFLICTING features.
+4. Suggest 1 or 2 specific distinguishing clinical questions or physical examination tests needed.
+5. Keep the summary concise, professional, and structured for internal decision support.
+
+INTERNAL CLINICAL DIFFERENTIAL SUMMARY:
+
+--- TOOL SCHEMA ---
+Function name: diagnosis_retrieval_tool
+Args:
+  query (str): The clinical query — a description of patient symptoms and history to search the dermatology diagnosis vector store.
+Returns:
+  str: A structured internal clinical differential summary synthesised from retrieved dermatological knowledge.

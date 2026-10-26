@@ -1,0 +1,31 @@
+# Tool: generate_medical_report
+
+Tool description (docstring from ent_logic.py):
+Generates a formal, professional ENT consultation report in HTML/Tailwind format.
+
+--- REPORT SCHEMA ---
+The model must pass these named arguments when calling generate_medical_report:
+
+  name            (str): Patient's full name.
+  age             (str): Patient's age.
+  gender          (str): Patient's gender.
+  patient_id      (str): Unique patient identifier (e.g., ENT-887766).
+  location        (str): Patient's city or region.
+  complaints      (str): Primary medical complaints — professional, highly detailed.
+  notes           (str): Clinical notes and observations from the full history.
+  diagnosis       (str): Final clinical diagnosis.
+  medications     (list): List of dicts. Each dict MUST use these exact keys:
+                          {"name": "Drug", "dosage": "10mg", "frequency": "BID", "duration": "7 days"}
+                          Populate using data from 'medication_retrieval_tool'.
+  instructions    (list): List of strings for care instructions (at least 5-6 distinct, actionable steps).
+  treatment_steps (list): List of strings for the treatment plan.
+
+--- FIELD VALIDATION RULES ---
+- FORBIDDEN: Passing 'N/A', 'N/N', or empty strings to any field.
+- RE-VERIFICATION: If demographics were collected long ago, re-ask before calling the tool.
+- patient_id: Always generate a unique alphanumeric ID (e.g., ENT-887766).
+
+--- POST-GENERATION INSTRUCTION ---
+After the tool executes, say ONLY:
+'I have generated your detailed medical report. You can download it below.'
+Then STOP.
