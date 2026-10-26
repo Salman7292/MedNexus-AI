@@ -256,7 +256,7 @@ Query sets and derived files are provided where licensing permits. Copyrighted c
 
 ## 📖 Documentation
 
-Full developer documentation is available at <https://mednexus-ai.readthedocs.io>.
+Full developer documentation is available at 
 
 ---
 
