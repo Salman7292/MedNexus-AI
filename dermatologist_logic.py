@@ -8,6 +8,10 @@ import random
 from typing import List, TypedDict, Annotated, Literal, Dict, Any, Optional
 from datetime import datetime
 from PIL import Image
+try:
+    import pillow_avif
+except ImportError:
+    pass
 
 import moondream as md
 from tavily import TavilyClient
@@ -375,12 +379,14 @@ def create_image_analysis_json(
     image_path: str,
     raw_body_part: str = "",
     raw_findings: str = "",
+    raw_condition: Optional[str] = None,
     error_msg: Optional[str] = None,
     image_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Constructs the exact structured JSON schema for image analysis.
     Distinguishes clinical skin photos from medical reports, other images, and unknown/blurry uploads.
+    Extracts anatomical location, what is on that location, and suspected dermatological conditions in detail.
     Validates for internal consistency and eliminates contradictions before returning.
     """
     clean_path = str(image_path).replace("\\", "/")
@@ -388,10 +394,20 @@ def create_image_analysis_json(
     if not image_id:
         image_id = f"img_{uuid.uuid5(uuid.NAMESPACE_DNS, img_name).hex[:12]}"
 
-    raw_answer = (raw_body_part + " " + raw_findings).strip()
+    # Extract structured sections if raw_findings contains clinical examination headers
+    if raw_findings:
+        bp_m = re.search(r'(?:1\.?\s*Anatomical\s*(?:body\s*part\s*[/]?\s*)?location|location)[:\s]+([^\n]+)', raw_findings, re.IGNORECASE)
+        vf_m = re.search(r'(?:2\.?\s*Detailed\s*visual\s*findings|visual\s*findings)[:\s]+([\s\S]*?)(?=(?:3\.?\s*Suspected|\Z))', raw_findings, re.IGNORECASE)
+        sc_m = re.search(r'(?:3\.?\s*Suspected\s*(?:dermatological\s*)?condition|possible\s*dermatological\s*condition)[:\s]+([\s\S]*?)$', raw_findings, re.IGNORECASE)
+        if bp_m and (not raw_body_part or raw_body_part.lower() in ["uncertain", "none", "", "skin"]):
+            raw_body_part = bp_m.group(1).strip()
+        if sc_m and not raw_condition:
+            raw_condition = sc_m.group(1).strip()
+
+    raw_answer = (str(raw_body_part or "") + " " + str(raw_findings or "") + " " + str(raw_condition or "")).strip()
     lower_raw = raw_answer.lower()
-    lower_bp = raw_body_part.lower().strip()
-    lower_findings = raw_findings.lower().strip()
+    lower_bp = str(raw_body_part or "").lower().strip()
+    lower_findings = str(raw_findings or "").lower().strip()
 
     # ---- Error short-circuit ---------------------------------------------------
     if error_msg:
@@ -602,6 +618,9 @@ def create_image_analysis_json(
         elif has_lesion_hint:
             analysis["clinical_skin_photo"]["lesion_identified"] = {"value": True, "status": "observed"}
             analysis["clinical_skin_photo"]["lesion_description"] = raw_findings.strip()
+            analysis["clinical_skin_photo"]["what_is_on_location"] = raw_findings.strip()
+            if raw_condition:
+                analysis["clinical_skin_photo"]["suspected_condition_patterns"] = raw_condition.strip()
 
             # Lesion sub-location within the region
             region_val = analysis["anatomical_region"].get("value") or "visible skin"
@@ -628,6 +647,9 @@ def create_image_analysis_json(
             analysis["clinical_skin_photo"]["lesion_description"] = (
                 raw_findings.strip() if raw_findings.strip() else "Visual observations of skin could not be confirmed reliably."
             )
+            analysis["clinical_skin_photo"]["what_is_on_location"] = raw_findings.strip()
+            if raw_condition:
+                analysis["clinical_skin_photo"]["suspected_condition_patterns"] = raw_condition.strip()
             analysis["clinical_skin_photo"]["distribution"] = "uncertain"
 
         # ---- Parse Visible Features (consistent status values) ----
@@ -675,6 +697,23 @@ def create_image_analysis_json(
             if not any(t in lower_findings for t in ["flat", "macular", "not raised"]):
                 vf.append({"feature": "raised_surface", "status": "present"})
 
+        # Comedones / Blackheads / Clogged pores
+        if any(t in lower_findings for t in ["comedone", "blackhead", "whitehead", "clogged pore", "pore"]):
+            if not any(t in lower_findings for t in ["no comedone", "no blackhead"]):
+                vf.append({"feature": "comedones_blackheads", "status": "present"})
+
+        # Depigmentation / Vitiligo / Hypopigmentation
+        if any(t in lower_findings for t in ["depigment", "hypopigment", "vitiligo", "loss of pigment", "light-colored"]):
+            vf.append({"feature": "depigmentation", "status": "present"})
+
+        # Hyperpigmentation / Melasma / Dark spots
+        if any(t in lower_findings for t in ["hyperpigment", "melasma", "dark spot", "brown patch"]):
+            vf.append({"feature": "hyperpigmentation", "status": "present"})
+
+        # Pustules / Purulent lesions
+        if any(t in lower_findings for t in ["pustule", "pimple", "purulent"]):
+            vf.append({"feature": "pustules", "status": "present"})
+
         analysis["clinical_skin_photo"]["visible_findings"] = vf
 
         # Quality limitations note
@@ -691,12 +730,14 @@ def create_image_analysis_json(
 @tool
 def analyze_skin_or_report_image(image_path: str) -> str:
     """
-    Analyzes an uploaded skin photograph or medical document using visual AI (Moondream).
-    Uses focused queries for anatomical identification, skin findings, and document classification.
-    Returns structured JSON with image_type, anatomical_region, clinical_skin_photo,
-    medical_report, image_quality, and diagnostic_limitations.
+    Use this tool when a patient provides a photo of their skin, lesion, rash, or a medical report.
+    
+    CRITICAL: 
+    - You MUST use the EXACT file path provided in the "[System Alert: User uploaded an image. Local Path: ...]" message.
+    - Copy the path character-for-character.
+    - DO NOT make up, guess, or hallucinate a path (like 'D:\\tmp\\...'). If you don't see a [System Alert] with a path, do not use this tool.
     """
-    clean_path = str(image_path).replace("\\", "/")
+    clean_path = str(image_path).strip().strip("'\"").replace("\\", "/")
     # Locate image file if relative or shifted
     if not os.path.exists(clean_path):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -724,34 +765,26 @@ def analyze_skin_or_report_image(image_path: str) -> str:
             return json.dumps(struct, indent=2)
 
     try:
-        image = Image.open(clean_path)
+        image = Image.open(clean_path).convert('RGB')
         model = get_image_model()
 
-        # Query 1: Anatomical region / Document type
-        body_part_prompt = (
-            "Look at this image. What part of the human body is shown? "
-            "Be specific (e.g., 'nose', 'cheek', 'forehead', 'chin', 'lips', 'ear', 'eye area', 'neck', 'arm', 'hand', 'leg', 'foot', 'back', 'chest', 'abdomen'). "
-            "If this is a printed medical document, lab test result, or paper report rather than a skin photograph, answer 'medical document'. "
-            "If this is a non-human object or animal, answer 'other'. "
-            "If you cannot determine the body part, answer 'uncertain'. "
-            "Reply with the body part or category in one short phrase."
+        # Comprehensive Clinical Dermatological Examination Query
+        exam_prompt = (
+            "Perform a detailed clinical dermatological examination of this image:\n"
+            "1. Anatomical body part / location: Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, periorbital / eye area, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot). If this is a printed paper lab test or report, state 'medical document'. If non-human object/animal, state 'other'.\n"
+            "2. Detailed visual findings: Describe in comprehensive detail what is on that location: specific lesions (macules, papules, pustules, comedones/blackheads, patches, plaques), color (erythema/redness, depigmentation, hyperpigmentation), borders, surface texture (raised, flat, rough, scaling, crusting), and pore features.\n"
+            "3. Suspected dermatological condition / pattern: What specific skin condition, diagnosis, or clinical pattern does this visual presentation most strongly indicate or resemble (e.g., acne vulgaris / comedones, vitiligo, melasma, eczema, rosacea, folliculitis, tinea, etc.)?"
         )
-        result_bp = model.query(image, body_part_prompt)
-        raw_body_part = result_bp.get("answer", "").strip()
-
-        # Query 2: Visible skin findings
-        findings_prompt = (
-            "Examine this image with strict clinical objectivity: "
-            "(a) Is there a distinct visible lesion, bump, rash, or skin abnormality? "
-            "(b) If yes, describe its apparent location, shape, borders, color (redness/erythema), and surface features (raised vs flat, scaling, crusting, erosion, ulceration, swelling). "
-            "(c) If no distinct lesion is identifiable, state clearly that no focal lesion is seen. "
-            "(d) If this is a medical document, summarize the written test names, values, and diagnoses. "
-            "(e) Note any image quality limitations. Do not guess a medical diagnosis."
-        )
-        result_findings = model.query(image, findings_prompt)
+        result_findings = model.query(image, exam_prompt)
         raw_findings = result_findings.get("answer", "").strip()
 
-        struct = create_image_analysis_json(clean_path, raw_body_part, raw_findings)
+        # Parse sections
+        bp_m = re.search(r'(?:1\.?\s*Anatomical\s*(?:body\s*part\s*[/]?\s*)?location|location)[:\s]+([^\n]+)', raw_findings, re.IGNORECASE)
+        raw_body_part = bp_m.group(1).strip() if bp_m else "uncertain"
+        cond_m = re.search(r'(?:3\.?\s*Suspected\s*(?:dermatological\s*)?condition|possible\s*dermatological\s*condition)[:\s]+([\s\S]*?)$', raw_findings, re.IGNORECASE)
+        raw_condition = cond_m.group(1).strip() if cond_m else None
+
+        struct = create_image_analysis_json(clean_path, raw_body_part=raw_body_part, raw_findings=raw_findings, raw_condition=raw_condition)
         return json.dumps(struct, indent=2)
 
     except Exception as e:
@@ -795,6 +828,9 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
         "triggers": None,
         "previous_treatments": None,
         "associated_symptoms": None,
+        "firmness": None,
+        "redness": None,
+        "clarification_needed": None,
         "lesion_location": None,              # Patient-reported lesion location
         "image_inferred_region": None,        # Visual AI inferred anatomical region
         "image_inferred_region_status": None, # visually_identified / uncertain / not_assessable
@@ -820,17 +856,54 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
     }
 
     last_ai_question = ""
+    last_ai_topic = "other"
 
     for idx, msg in enumerate(messages):
         # 1. AI MESSAGE PROCESSING
         if isinstance(msg, AIMessage):
             text = msg.content if isinstance(msg.content, str) else ""
             if "?" in text:
-                sentences = [s.strip() for s in text.replace("\n", " ").split(".") if s.strip()]
-                for s in sentences:
-                    if "?" in s:
-                        last_ai_question = s.lower()
-                        profile["pending_question"] = s.strip()
+                # Capture the full question sentence without breaking on abbreviations like e.g. or dr.
+                q_matches = re.findall(r'([^.!?\n]+(?:\([^\)]*\))?[^.!?\n]*\?)', text)
+                if q_matches:
+                    last_ai_question = q_matches[-1].strip().lower()
+                    profile["pending_question"] = q_matches[-1].strip()
+                else:
+                    last_ai_question = text.strip().lower()
+                    profile["pending_question"] = text.strip()
+
+            # Classify question topic
+            combined_q = (last_ai_question + " " + text.lower())
+            if any(w in combined_q for w in ["your name", "what is your name", "may i have your name", "who am i speaking with"]):
+                last_ai_topic = "name"
+            elif any(w in combined_q for w in ["how old", "your age", "tell me your age"]):
+                last_ai_topic = "age"
+            elif any(w in combined_q for w in ["where are you located", "your location", "where do you live", "current location", "city or region", "city"]):
+                last_ai_topic = "location"
+            elif any(w in combined_q for w in ["gender", "biological sex", "male or female"]):
+                last_ai_topic = "gender"
+            elif any(w in combined_q for w in ["where on your body", "which body part", "where is the lesion", "location of the bump", "affected area"]):
+                last_ai_topic = "lesion_location"
+            elif any(w in combined_q for w in ["how long", "duration", "how many days", "how many weeks", "when did this start"]):
+                last_ai_topic = "duration"
+            elif ("pain" in combined_q or "tenderness" in combined_q or "discomfort" in combined_q) and ("itch" in combined_q):
+                last_ai_topic = "pain_and_itching"
+            elif "pain" in combined_q or "tenderness" in combined_q or "discomfort" in combined_q or "hurt" in combined_q:
+                last_ai_topic = "pain"
+            elif "itch" in combined_q or "scratch" in combined_q:
+                last_ai_topic = "itching"
+            elif any(w in combined_q for w in ["trigger", "worse", "heat", "sun", "stress", "food", "factors"]):
+                last_ai_topic = "triggers"
+            elif any(w in combined_q for w in ["cleanser", "cream", "treatment", "ointment", "medication", "products", "tried anything", "used any"]):
+                last_ai_topic = "treatments"
+            elif any(w in combined_q for w in ["spread", "spreading", "changes", "new bumps", "grown", "getting bigger"]):
+                last_ai_topic = "spread"
+            elif any(w in combined_q for w in ["pus", "crust", "scaling", "fluid", "blister", "scab", "peeling"]):
+                last_ai_topic = "associated_symptoms"
+            elif any(w in combined_q for w in ["what does the skin", "look like", "color", "red or pink", "firm", "soft"]):
+                last_ai_topic = "appearance"
+            else:
+                last_ai_topic = "other"
 
             # Detect whether assistant has addressed/explained the uploaded photograph
             if any(term in text.lower() for term in [
@@ -938,11 +1011,11 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                     profile["image_explained"] = False
 
             clean_text = re.sub(r'\[System Alert:[^\]]+\]', '', content).strip()
-            clean_lower = clean_text.lower()
+            clean_lower = clean_text.lower().rstrip(".!? ")
             if not clean_text:
                 continue
 
-            # (A) STRUCTURED / KEY-VALUE EXTRACTION (e.g. "Name: Salman. Age: 22. Location: Buner. Gender: Male.")
+            # (A) STRUCTURED / KEY-VALUE EXTRACTION
             kv_name = re.search(r'\b(?:patient(?:\s*name)?|name)\s*[:=\-]\s*([a-zA-Z\s\'-]+?)(?:,|\.|\n|$)', clean_text, re.IGNORECASE)
             if kv_name:
                 cand = kv_name.group(1).strip().split(".")[0].split(",")[0].strip()
@@ -1021,8 +1094,94 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                     profile["gender"] = "Female"
                     profile["answered_topics"].add("gender")
 
-            # (C) CONTEXT-BASED REPLIES (AI asked question on previous turn)
-            if ("your name" in last_ai_question or "what is your name" in last_ai_question) and not profile["name"]:
+            # (C) PATIENT CONFUSION & CLARIFICATION REQUESTS
+            if any(conf in clean_lower for conf in [
+                "what does itching mean", "what is itching", "what does that mean", 
+                "what do you mean", "i don't understand", "sorry, what", "sorry what", "pardon"
+            ]):
+                profile["clarification_needed"] = last_ai_topic if last_ai_topic != "other" else "general"
+
+            # (D) CONCISE NEGATIVE RESPONSES ("no", "none", "nope", "haven't used anything", etc.)
+            is_negative = bool(re.search(r'^(?:no|nope|none|not really|not at all|haven\'t|nothing|zero|0)\b', clean_lower) or clean_lower in [
+                "no", "none", "nope", "nothing", "not at all", "no i haven't", "no, i haven't", 
+                "no i haven't used anything yet", "no, i haven't used anything yet", "no, nothing", "no changes"
+            ])
+            if is_negative and clean_lower not in ["not soft"]:
+                if last_ai_topic == "pain":
+                    profile["pain"] = "0/10 (denied)"
+                    profile["answered_topics"].add("pain")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "itching":
+                    profile["itching"] = "0/10 (denied)"
+                    profile["answered_topics"].add("itching")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "pain_and_itching":
+                    profile["pain"] = "0/10 (denied)"
+                    profile["itching"] = "0/10 (denied)"
+                    profile["answered_topics"].update(["pain", "itching"])
+                    profile["pending_question"] = None
+                elif last_ai_topic == "triggers":
+                    profile["triggers"] = "None reported (denied)"
+                    profile["answered_topics"].add("triggers")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "treatments":
+                    profile["previous_treatments"] = "None (no prior treatments used)"
+                    profile["answered_topics"].add("treatments")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "spread":
+                    profile["spread"] = "None (stable, not spreading)"
+                    profile["answered_topics"].add("spread")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "associated_symptoms":
+                    profile["associated_symptoms"] = "None (denied)"
+                    profile["answered_topics"].add("associated_symptoms")
+                    profile["pending_question"] = None
+
+            # (E) NUMERIC RATING OR STANDALONE NUMBER (e.g. "5", "5/10", "about 5")
+            num_match = re.search(r'^(?:about\s+|approximately\s+)?(\d{1,2})(?:\s*/\s*10|\s*out of\s*10|\.)?$', clean_text.strip()) or re.search(r'(\b\d{1,2}\s*/\s*10\b|\b\d{1,2}\s*out of\s*10\b)', clean_text.strip())
+            if num_match:
+                raw_score = num_match.group(1).strip()
+                formatted_score = f"{raw_score}/10" if "/10" not in raw_score else raw_score
+                if last_ai_topic == "pain" or ("pain" in last_ai_question and "itch" not in last_ai_question):
+                    profile["pain"] = formatted_score
+                    profile["answered_topics"].add("pain")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "itching" or ("itch" in last_ai_question and "pain" not in last_ai_question):
+                    profile["itching"] = formatted_score
+                    profile["answered_topics"].add("itching")
+                    profile["pending_question"] = None
+                elif (last_ai_topic == "age" or "how old" in last_ai_question or "your age" in last_ai_question) and not profile["age"]:
+                    profile["age"] = raw_score
+                    profile["answered_topics"].add("age")
+                    profile["pending_question"] = None
+
+            # (F) POSITIVE CONFIRMATIONS ("yes", "yeah", "i do", "there is")
+            if clean_lower in ["yes", "yeah", "yep", "i do", "there is", "yes, there is", "yes."]:
+                if last_ai_topic == "associated_symptoms" or any(w in last_ai_question for w in ["pus", "crust", "scaling"]):
+                    profile["associated_symptoms"] = "Present (pus, crust, or scaling reported by patient)"
+                    profile["answered_topics"].add("associated_symptoms")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "spread" or "spread" in last_ai_question:
+                    profile["spread"] = "Present (spreading or changes noted)"
+                    profile["answered_topics"].add("spread")
+                    profile["pending_question"] = None
+
+            # (G) LESION TEXTURE AND APPEARANCE DETAILS
+            if clean_lower in ["not soft", "firm"]:
+                profile["firmness"] = "Firm (not soft)"
+                profile["answered_topics"].add("appearance")
+                profile["pending_question"] = None
+            if clean_lower in ["red", "pink", "redness"]:
+                profile["redness"] = clean_lower.capitalize()
+                profile["answered_topics"].add("appearance")
+                profile["pending_question"] = None
+            if "blackhead" in clean_lower:
+                profile["complaint"] = "Blackheads on nose"
+                profile["lesion_location"] = "nose"
+                profile["answered_topics"].add("lesion_location")
+
+            # (H) CONTEXT-BASED REPLIES (AI asked question on previous turn)
+            if ("your name" in last_ai_question or "what is your name" in last_ai_question or "may i have your name" in last_ai_question) and not profile["name"]:
                 name_match = re.search(r'(?:my name is|i am|i\'m|call me)?\s*([a-zA-Z\s\.\'-]+)', clean_text, re.IGNORECASE)
                 if name_match:
                     name_cand = name_match.group(1).strip().split(".")[0].split(",")[0].strip()
@@ -1031,21 +1190,21 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                         profile["answered_topics"].add("name")
                         profile["pending_question"] = None
 
-            elif ("how old are you" in last_ai_question or "your age" in last_ai_question) and not profile["age"]:
+            elif ("how old are you" in last_ai_question or "your age" in last_ai_question or "tell me your age" in last_ai_question) and not profile["age"]:
                 age_match = re.search(r'(\b\d{1,3}\b)', clean_text)
                 if age_match:
                     profile["age"] = age_match.group(1).strip()
                     profile["answered_topics"].add("age")
                     profile["pending_question"] = None
 
-            elif any(w in last_ai_question for w in ["where are you located", "your location", "where do you live", "city"]) and not profile["location"]:
+            elif any(w in last_ai_question for w in ["where are you located", "your location", "where do you live", "city", "current location"]) and not profile["location"]:
                 loc_cand = clean_text.replace("I live in", "").replace("I am in", "").replace("Location is", "").strip().split(".")[0].strip()
-                if loc_cand and len(loc_cand) >= 2:
+                if loc_cand and len(loc_cand) >= 2 and loc_cand.lower() not in ["yes", "no", "sure", "ok", "none"]:
                     profile["location"] = loc_cand
                     profile["answered_topics"].add("location")
                     profile["pending_question"] = None
 
-            # (D) DURATION (numbers or spelled-out words like 'two weeks', 'approximately two weeks', 'about 3 days')
+            # (I) DURATION
             dur_since = re.search(r'\b(?:since|for)\s+((?:about\s+|approximately\s+)?[a-zA-Z0-9\s]+?(?:days?|weeks?|months?|years?))\b', clean_text, re.IGNORECASE)
             if dur_since and not profile["duration"]:
                 profile["duration"] = dur_since.group(1).strip().lower()
@@ -1060,7 +1219,7 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                 if "how long" in last_ai_question or "duration" in last_ai_question:
                     profile["pending_question"] = None
 
-            # (E) PATIENT-REPORTED LESION LOCATION
+            # (J) PATIENT-REPORTED LESION LOCATION
             for loc in ["nose", "cheek", "forehead", "chin", "lip", "lips", "ear", "eye", "neck", "arm", "forearm", "hand", "leg", "thigh", "foot", "chest", "back", "abdomen", "scalp"]:
                 if f"on my {loc}" in clean_lower or f"in my {loc}" in clean_lower or f"on the {loc}" in clean_lower or f"my {loc}" in clean_lower or clean_lower == loc:
                     profile["lesion_location"] = loc
@@ -1073,7 +1232,7 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                         profile["answered_topics"].add("lesion_location")
                         break
 
-            # (F) PAIN AND ITCHING SEPARATION (Strictly Distinct)
+            # (K) PAIN AND ITCHING SEPARATION
             if re.search(r'\b(no itch\w*|not itch\w*|zero itch\w*|denies itch\w*|without itch\w*)\b', clean_lower):
                 profile["itching"] = "None (denied)"
                 profile["answered_topics"].add("itching")
@@ -1094,20 +1253,7 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                 profile["answered_topics"].add("pain")
                 if "pain" in last_ai_question: profile["pending_question"] = None
 
-            if ("pain" in last_ai_question and "itch" not in last_ai_question) and not profile["pain"]:
-                score_match = re.search(r'(\b\d+\s*/\s*10\b|\b\d+\s*out of\s*10\b|\b\d+\b)', clean_text)
-                if score_match:
-                    profile["pain"] = score_match.group(1).strip()
-                    profile["answered_topics"].add("pain")
-                    profile["pending_question"] = None
-            elif ("itch" in last_ai_question and "pain" not in last_ai_question) and not profile["itching"]:
-                score_match = re.search(r'(\b\d+\s*/\s*10\b|\b\d+\s*out of\s*10\b|\b\d+\b)', clean_text)
-                if score_match:
-                    profile["itching"] = score_match.group(1).strip()
-                    profile["answered_topics"].add("itching")
-                    profile["pending_question"] = None
-
-            # (G) TRIGGERS & TREATMENTS
+            # (L) TRIGGERS & TREATMENTS
             if any(trig in clean_lower for trig in ["heat", "sun", "sweat", "stress", "cold", "food", "spicy"]):
                 profile["triggers"] = clean_text
                 profile["answered_topics"].add("triggers")
@@ -1118,7 +1264,7 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
             if not profile["complaint"] and len(clean_text) > 4 and not any(k in clean_lower for k in ["name", "age", "location", "gender"]):
                 profile["complaint"] = clean_text
 
-    # (H) EVALUATE MEDICAL REPORT CONFLICT / DISCREPANCY
+    # (M) EVALUATE MEDICAL REPORT CONFLICT / DISCREPANCY
     doc_name = profile["document_data"].get("name")
     if doc_name and profile["name"]:
         if profile["name"].lower() not in doc_name.lower() and doc_name.lower() not in profile["name"].lower():
@@ -1562,6 +1708,36 @@ tool_node = ToolNode(tools)
 # RESPONSE VALIDATION & SINGLE-QUESTION ENFORCEMENT LAYER
 # ==============================================================================
 
+def _get_next_unasked_question(profile: Dict[str, Any]) -> str:
+    """
+    Determines the next unasked clinical question in sequence, preventing loops
+    and transitioning cleanly to consultation closure when history is complete.
+    """
+    answered = profile.get("answered_topics", set())
+    if not profile.get("name") and "name" not in answered:
+        return "May I have your name, please?"
+    if not profile.get("age") and "age" not in answered:
+        return "How old are you?"
+    if not profile.get("location") and "location" not in answered:
+        return "Where are you located?"
+    if not profile.get("gender") and "gender" not in answered:
+        return "What is your biological sex or gender?"
+    if not profile.get("duration") and "duration" not in answered:
+        return "How long has this lesion been present?"
+    if profile.get("pain") is None and "pain" not in answered:
+        return "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
+    if profile.get("itching") is None and "itching" not in answered:
+        return "Have you experienced any itching or burning sensations in that area?"
+    if profile.get("triggers") is None and "triggers" not in answered:
+        return "Have you noticed any factors—such as heat, sun, or stress—that make it worse?"
+    if profile.get("previous_treatments") is None and "treatments" not in answered:
+        return "Have you tried any cleansers, creams, or other treatments for this so far?"
+    if profile.get("spread") is None and "spread" not in answered:
+        return "Have you noticed any changes or spreading in that area recently?"
+    # When clinical intake is complete, offer report generation
+    return "Would you like me to generate a formal medical summary report for you to download or share with your doctor?"
+
+
 def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
     """
     Enforces clinical safety and UI guardrails:
@@ -1619,7 +1795,17 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
                     if not single_q.endswith("?"):
                         single_q += "?"
 
+                    # Resolve compound symptom questions in single_q
+                    if "pain" in single_q.lower() and "itch" in single_q.lower():
+                        if "pain" not in profile.get("answered_topics", set()) and profile.get("pain") is None:
+                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
+                        else:
+                            single_q = "Have you experienced any itching or burning sensations in that area?"
+                    elif "pus" in single_q.lower() and "crust" in single_q.lower():
+                        single_q = "Do you see any visible pus or fluid-filled spots in that area?"
+
                     q_lower = single_q.lower()
+                    answered = profile.get("answered_topics", set())
 
                     # Check if question asks for location when location is ALREADY KNOWN
                     is_location_q = any(w in q_lower for w in [
@@ -1632,67 +1818,48 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
                     )
 
                     if is_location_q and has_known_location:
-                        # Replace redundant location question with next unasked clinical question
-                        if not profile.get("duration"):
+                        if not profile.get("duration") and "duration" not in answered:
                             single_q = "How long has this lesion been present?"
-                        elif not profile.get("pain"):
-                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
-                        elif not profile.get("itching"):
-                            single_q = "Have you experienced any itching or burning sensations in that area?"
                         else:
-                            single_q = "Have you noticed any spreading or new bumps appearing elsewhere?"
+                            single_q = _get_next_unasked_question(profile)
 
                     # Check if question asks for duration when duration is ALREADY KNOWN
-                    elif ("how long" in q_lower or "duration" in q_lower or "when did" in q_lower) and profile.get("duration"):
-                        if not profile.get("pain"):
-                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
-                        elif not profile.get("itching"):
-                            single_q = "Have you experienced any itching or burning sensations in that area?"
-                        else:
-                            single_q = "Have you noticed any spreading or new bumps appearing elsewhere?"
+                    elif ("how long" in q_lower or "duration" in q_lower or "when did" in q_lower) and (profile.get("duration") or "duration" in answered):
+                        single_q = _get_next_unasked_question(profile)
 
                     # Check if question asks for demographics when already known
-                    elif ("your name" in q_lower or "what is your name" in q_lower) and profile.get("name"):
-                        if not profile.get("age"):
-                            single_q = "How old are you?"
-                        elif not profile.get("location"):
-                            single_q = "Where are you located?"
-                        elif not profile.get("gender"):
-                            single_q = "What is your biological sex or gender?"
-                        elif not profile.get("duration"):
-                            single_q = "How long has this lesion been present?"
-                        elif not profile.get("pain"):
-                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
-                        elif not profile.get("itching"):
-                            single_q = "Have you experienced any itching or burning sensations in that area?"
-                        else:
-                            single_q = "Have you noticed any changes or spreading in that area recently?"
+                    elif ("your name" in q_lower or "what is your name" in q_lower or "may i have your name" in q_lower) and (profile.get("name") or "name" in answered):
+                        single_q = _get_next_unasked_question(profile)
 
-                    elif ("how old" in q_lower or "your age" in q_lower) and profile.get("age"):
-                        if not profile.get("location"):
-                            single_q = "Where are you located?"
-                        elif not profile.get("gender"):
-                            single_q = "What is your biological sex or gender?"
-                        elif not profile.get("duration"):
-                            single_q = "How long has this lesion been present?"
-                        elif not profile.get("pain"):
-                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
-                        elif not profile.get("itching"):
-                            single_q = "Have you experienced any itching or burning sensations in that area?"
-                        else:
-                            single_q = "Have you noticed any changes or spreading in that area recently?"
+                    elif ("how old" in q_lower or "your age" in q_lower or "tell me your age" in q_lower) and (profile.get("age") or "age" in answered):
+                        single_q = _get_next_unasked_question(profile)
 
-                    elif ("where are you located" in q_lower or "where do you live" in q_lower) and profile.get("location"):
-                        if not profile.get("gender"):
-                            single_q = "What is your biological sex or gender?"
-                        elif not profile.get("duration"):
-                            single_q = "How long has this lesion been present?"
-                        elif not profile.get("pain"):
-                            single_q = "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
-                        elif not profile.get("itching"):
-                            single_q = "Have you experienced any itching or burning sensations in that area?"
-                        else:
-                            single_q = "Have you noticed any changes or spreading in that area recently?"
+                    elif ("where are you located" in q_lower or "where do you live" in q_lower or "current location" in q_lower or "city or region" in q_lower) and (profile.get("location") or "location" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    elif ("gender" in q_lower or "biological sex" in q_lower) and (profile.get("gender") or "gender" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for triggers when already known
+                    elif ("trigger" in q_lower or "heat" in q_lower or "sun" in q_lower or "stress" in q_lower) and (profile.get("triggers") is not None or "triggers" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for prior treatments when already known
+                    elif ("cream" in q_lower or "cleanser" in q_lower or "treatment" in q_lower or "medication" in q_lower or "cleansers" in q_lower) and (profile.get("previous_treatments") is not None or "treatments" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for spreading / changes when already known
+                    elif ("spread" in q_lower or "spreading" in q_lower or "new bumps" in q_lower or "changes" in q_lower) and (profile.get("spread") is not None or "spread" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for pain when already known
+                    elif ("pain" in q_lower or "tenderness" in q_lower or "discomfort" in q_lower) and (profile.get("pain") is not None or "pain" in answered):
+                        if not ("itch" in q_lower and (profile.get("itching") is None and "itching" not in answered)):
+                            single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for itching when already known
+                    elif ("itch" in q_lower or "scratch" in q_lower) and (profile.get("itching") is not None or "itching" in answered):
+                        single_q = _get_next_unasked_question(profile)
 
                     preserved_segments.append(single_q)
                     question_count += 1
@@ -1807,8 +1974,12 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
     dur_str = profile.get("duration") or "Not yet provided"
     pain_str = profile.get("pain") or "Not yet assessed"
     itch_str = profile.get("itching") or "Not yet assessed"
+    spread_str = profile.get("spread") or "Not yet assessed"
     triggers_str = profile.get("triggers") or "None reported"
     tx_str = profile.get("previous_treatments") or "None reported"
+    firm_str = profile.get("firmness") or "Not specified"
+    red_str = profile.get("redness") or "Not specified"
+    assoc_str = profile.get("associated_symptoms") or "None reported"
 
     # Patient-reported vs. image-inferred location (kept strictly separate)
     patient_reported_loc = profile.get("lesion_location") or "Not yet reported by patient"
@@ -1855,8 +2026,10 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
             anat_stat = anat_obj.get("status", "uncertain")
             photo = data.get("clinical_skin_photo", {})
             lesion_ident = photo.get("lesion_identified", {})
-            lesion_loc = photo.get("lesion_location")
+            lesion_loc = photo.get("lesion_location") or anat_val or "affected area"
             lesion_desc = photo.get("lesion_description") or "Visual skin observation"
+            what_is_on_loc = photo.get("what_is_on_location") or lesion_desc
+            suspected_cond = photo.get("suspected_condition_patterns") or "Under clinical differential evaluation"
             vf_list = photo.get("visible_findings", [])
             vf_str = ", ".join([f"{v.get('feature')} ({v.get('status')})" for v in vf_list]) if vf_list else "None specific"
             dist_str = photo.get("distribution") or "not_assessable"
@@ -1867,26 +2040,26 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
                 "\n--- ACTIVE IMAGE VISUAL OBSERVATIONS (CONFIRMED OBJECTIVE FINDINGS) ---\n"
                 f"• Image Category: {img_type} (status: {class_status})\n"
                 f"• Visual Anatomical Region: {anat_val or 'Uncertain / Not determined'} (status: {anat_stat})\n"
-                f"• Lesion Identified: {lesion_ident.get('value')} (status: {lesion_ident.get('status')})\n"
-                f"• Apparent Location in Region: {lesion_loc or 'N/A'}\n"
-                f"• Visual Findings Description: {lesion_desc}\n"
+                f"• Specific Location: {lesion_loc}\n"
+                f"• What Is On That Location (Findings & Lesions): {what_is_on_loc}\n"
+                f"• Suspected Dermatological Condition/Pattern: {suspected_cond}\n"
                 f"• Visible Features: {vf_str}\n"
                 f"• Distribution: {dist_str}\n"
                 f"• Quality Limitations: {lim_str}\n"
-                "• Visual Rule: Visual observations alone cannot confirm a definitive diagnosis.\n"
+                "• Visual Safety Rule: Visual observations alone cannot confirm a definitive diagnosis without an in-person physical examination.\n"
             )
 
             # If image has not yet been explained to the patient on this turn:
             if not profile.get("image_explained"):
                 if img_type == "clinical_skin_photo":
-                    region_mention = f"The photograph appears to show your {anat_val}." if (anat_val and anat_stat == "visually_identified") else "I have examined the skin photograph you shared."
                     immediate_image_instruction = (
                         f"\n[MANDATORY WORKFLOW FOR THIS RESPONSE - NEW IMAGE UPLOAD]:\n"
-                        f"In your very first sentence, immediately acknowledge and describe the photograph in simple, patient-friendly terms: "
-                        f"Mention the visible anatomical region ('{anat_val or 'area shown'}') and what is actually visible ('{lesion_desc}'). "
-                        f"State that visual inspection alone cannot confirm a definitive diagnosis. "
-                        f"Do NOT ask 'which body part is it on?' or 'what does it look like?'. "
-                        f"Then, ask at most ONE relevant clinical history follow-up question (e.g. duration or symptoms).\n"
+                        f"In your response, you must immediately acknowledge and describe the photograph to the patient in compassionate, professional terms:\n"
+                        f"1. Acknowledge the anatomical location ('{anat_val or 'area shown'}') and specific site ('{lesion_loc}').\n"
+                        f"2. Describe in detail what you observe on that location ('{what_is_on_loc}').\n"
+                        f"3. Note the suspected dermatological condition or pattern suggested by the visual presentation ('{suspected_cond}'), explaining that while the visual features suggest this possibility, an in-person clinical examination is required to confirm.\n"
+                        f"4. Do NOT ask 'which body part is it on?' or 'what does it look like?'.\n"
+                        f"5. Then, ask at most ONE relevant clinical history follow-up question (e.g. duration, pain/itching, or triggers).\n"
                     )
                 elif img_type == "medical_report":
                     immediate_image_instruction = (
@@ -1903,6 +2076,41 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
         except Exception:
             pass
 
+    # Check for confusion clarification guidance
+    clarification_section = ""
+    if profile.get("clarification_needed"):
+        term = profile.get("clarification_needed")
+        clarification_section = (
+            f"\n[PATIENT-FRIENDLY CLARIFICATION REQUIRED]:\n"
+            f"The patient requested clarification or expressed confusion about '{term}'. "
+            "First, explain the concept in plain, simple everyday words (e.g. itching is an uncomfortable tickling feeling that makes you want to scratch; tenderness is soreness when pressed or touched; pus is a small white/yellow fluid bump; crust is a dried scab). "
+            "Then, ask ONE simple, gentle question.\n"
+        )
+
+    # Check if clinical history intake is complete
+    history_complete = bool(
+        profile.get("duration") and 
+        profile.get("pain") is not None and 
+        profile.get("itching") is not None and 
+        (profile.get("triggers") is not None or profile.get("previous_treatments") is not None or profile.get("spread") is not None)
+    )
+
+    consolidated_query = f"{patient_reported_loc or inferred_region or 'skin'} lesion; duration: {dur_str}; pain: {pain_str}; itching: {itch_str}; triggers: {triggers_str}; treatments: {tx_str}; spread: {spread_str}"
+
+    phase4_transition_section = ""
+    if history_complete:
+        phase4_transition_section = (
+            "\n[PHASE 4 TRANSITION - MANDATORY ACTION]:\n"
+            "Clinical history intake is COMPLETE. All key diagnostic dimensions are gathered.\n"
+            "YOU ARE FORBIDDEN FROM ASKING MORE HISTORY QUESTIONS OR REPEATING PREVIOUS QUESTIONS (such as asking about spreading, pain, itching, or triggers again).\n"
+            "YOU MUST NOW:\n"
+            f"1. Call 'diagnosis_retrieval_tool' with the consolidated query: '{consolidated_query}'.\n"
+            "2. Present 2 to 3 differential diagnosis possibilities clearly explaining supporting features and missing features.\n"
+            "3. State the clinical uncertainty and explain that an in-person physical clinical examination by a dermatologist is required for confirmation.\n"
+            "4. Provide safe, practical home care guidance (e.g. gentle non-comedogenic cleansing, avoid picking or squeezing blackheads, sun protection).\n"
+            "5. Conclude with this single question: 'Would you like me to generate a formal medical summary report for you to download or share with your doctor?'\n"
+        )
+
     prompt = (
         "ROLE: You are Dr. Zavian, an expert clinical AI decision-support specialist in Dermatology at MedNexus AI.\n"
         "TONE & STYLE: Compassionate, concise (1-2 sentences), professional. Use simple everyday language.\n"
@@ -1917,20 +2125,30 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
         f"• Duration: {dur_str}\n"
         f"• Pain Level: {pain_str}\n"
         f"• Itching Level: {itch_str}\n"
+        f"• Spreading / Progression: {spread_str}\n"
         f"• Triggers: {triggers_str}\n"
         f"• Previous Treatments: {tx_str}\n"
+        f"• Surface Texture / Firmness: {firm_str}\n"
+        f"• Color / Redness: {red_str}\n"
+        f"• Associated Findings (Pus / Crust): {assoc_str}\n"
         f"• Patient-Reported Lesion Location: {patient_reported_loc}\n"
         f"• Image-Inferred Anatomical Region (from photo): {inferred_str}\n"
         f"• Image Status: {img_status}\n"
         f"{doc_section}"
         f"{image_obs_section}"
-        f"{immediate_image_instruction}\n"
+        f"{immediate_image_instruction}"
+        f"{clarification_section}"
+        f"{phase4_transition_section}\n"
 
         "--- STRICT WORKFLOW PROTOCOL ---\n"
         "1. SINGLE QUESTION MANDATE (ZERO TOLERANCE): You must ask EXACTLY ONE question per response. Never combine questions with 'and', commas, or semicolons.\n"
-        "2. IMAGE OBSERVATIONS & EXPLANATION:\n"
-        "   - When an image is present, always utilize the ACTIVE IMAGE VISUAL OBSERVATIONS above.\n"
-        "   - If the patient asks 'What is in the image?' or says 'You can see it in the image', answer directly from the observations above. Name the identified body part and visible skin findings. Do NOT ask 'which body part is it on?'.\n"
+        "2. IMAGE ANALYSIS (MANDATORY TOOL CALL):\n"
+        "   - When an image is uploaded (indicated by '[System Alert: User uploaded an image. Local Path: ...]'), you MUST IMMEDIATELY call the 'analyze_skin_or_report_image' tool with the exact Local Path provided before offering any diagnostic reasoning or follow-up question.\n"
+        "   - NEVER assume, hallucinate, or guess skin findings without calling this tool.\n"
+        "   - Extract the Local Path from [System Alert] but keep the technical file path hidden from the patient.\n"
+        "3. IMAGE OBSERVATIONS & EXPLANATION:\n"
+        "   - Once 'analyze_skin_or_report_image' has executed (or when active image observations are in context), explain the visible findings in simple, patient-friendly terms.\n"
+        "   - If the patient asks 'What is in the image?' or says 'You can see it in the image', answer directly from the analyzed observations. Name the identified body part and visible skin findings. Do NOT ask 'which body part is it on?'.\n"
         "   - Distinguish visible observations from possible diagnoses: a raised bump with redness is an observation; folliculitis or dermatitis is an interpretation, not a proven fact.\n"
         "3. PHASE 1: DEMOGRAPHIC INTAKE: Collect Name -> Age -> Location -> Gender INDIVIDUALLY. If a field is known above, DO NOT ask for it again. Ask only for the next missing field.\n"
         "4. PHASE 2: CLINICAL INVESTIGATION: After basic info, ask relevant history ONE question at a time:\n"
@@ -2025,12 +2243,10 @@ class ChatbotState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
 graph = StateGraph(ChatbotState)
-graph.add_node("preprocess", input_preprocess_node)
 graph.add_node("chat_node", chat_node)
 graph.add_node("tools", tool_node)
 
-graph.add_edge(START, "preprocess")
-graph.add_edge("preprocess", "chat_node")
+graph.add_edge(START, "chat_node")
 graph.add_conditional_edges("chat_node", tools_condition)
 graph.add_edge("tools", "chat_node")
 

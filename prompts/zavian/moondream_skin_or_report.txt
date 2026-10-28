@@ -1,23 +1,12 @@
-## Prompt: anatomical region
+## Prompt: Comprehensive Clinical Dermatological Examination
 
-Look at this image. What part of the human body is shown?
-Be specific (e.g., 'nose', 'cheek', 'forehead', 'chin', 'lips', 'ear', 'eye area', 'neck', 'arm', 'hand', 'leg', 'foot', 'back', 'chest', 'abdomen').
-If this is a printed medical document, lab test result, or paper report rather than a skin photograph, answer 'medical document'.
-If this is a non-human object or animal, answer 'other'.
-If you cannot determine the body part, answer 'uncertain'.
-Reply with the body part or category in one short phrase.
-
-## Prompt: visible lesion morphology
-
-Examine this image with strict clinical objectivity:
-(a) Is there a distinct visible lesion, bump, rash, or skin abnormality?
-(b) If yes, describe its apparent location, shape, borders, color (redness/erythema), and surface features (raised vs flat, scaling, crusting, erosion, ulceration, swelling).
-(c) If no distinct lesion is identifiable, state clearly that no focal lesion is seen.
-(d) If this is a medical document, summarize the written test names, values, and diagnoses.
-(e) Note any image quality limitations. Do not guess a medical diagnosis.
+Perform a detailed clinical dermatological examination of this image:
+1. Anatomical body part / location: Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, periorbital / eye area, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot). If this is a printed paper lab test or report, state 'medical document'. If non-human object/animal, state 'other'.
+2. Detailed visual findings: Describe in comprehensive detail what is on that location: specific lesions (macules, papules, pustules, comedones/blackheads, patches, plaques), color (erythema/redness, depigmentation, hyperpigmentation), borders, surface texture (raised, flat, rough, scaling, crusting), and pore features.
+3. Suspected dermatological condition / pattern: What specific skin condition, diagnosis, or clinical pattern does this visual presentation most strongly indicate or resemble (e.g., acne vulgaris / comedones, vitiligo, melasma, eczema, rosacea, folliculitis, tinea, etc.)?
 
 ---
-NOTE: Both prompts are passed sequentially to the Moondream VLM via model.query(image, prompt).
-The first prompt identifies the body part or document type; the second extracts clinical findings.
-Results feed into create_image_analysis_json() which constructs a structured JSON analysis object.
-Source: dermatologist_logic.py lines 730-752 (inside analyze_skin_or_report_image tool).
+NOTE: Passed to the Moondream VLM via model.query(image, exam_prompt).
+The prompt extracts (1) specific anatomical location, (2) detailed description of what is on that location, and (3) suspected dermatological condition/presentation.
+Results feed into create_image_analysis_json() which constructs structured clinical observations including `what_is_on_location` and `suspected_condition_patterns`.
+Source: dermatologist_logic.py (inside analyze_skin_or_report_image tool).

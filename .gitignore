@@ -36,3 +36,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Uploads & Temporary Testing
+static/dermatalogist_upload/*
+!static/dermatalogist_upload/.gitkeep
+static/ent_upload/*
+!static/ent_upload/.gitkeep
+check_db.py
