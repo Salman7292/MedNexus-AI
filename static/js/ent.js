@@ -1807,12 +1807,16 @@ async function sendMessage() {
         }
 
         // Auto-speak after streaming finishes
-        const isAutoSpeakEnabled = (autoSpeakToggle && autoSpeakToggle.checked) || (mobileAutoSpeakToggle && mobileAutoSpeakToggle.checked);
+        const isAutoSpeakEnabled = isVoiceModeActive ||
+            (autoSpeakToggle && autoSpeakToggle.checked) ||
+            (mobileAutoSpeakToggle && mobileAutoSpeakToggle.checked);
         if (firstTokenReceived && aiContentDiv && isAutoSpeakEnabled) {
-            const speakBtn = aiContentDiv.closest('.message-bubble')?.querySelector('.speak-btn');
-            if (speakBtn) {
-                speakText(aiContentDiv.innerText, speakBtn);
-            }
+            // Walk up to find .message-bubble wrapper (btn is optional — speakText works without it)
+            const bubbleContainer = aiContentDiv.closest('.message-bubble') ||
+                aiContentDiv.closest('.group') ||
+                aiContentDiv.parentElement;
+            const speakBtn = bubbleContainer ? bubbleContainer.querySelector('.speak-btn') : null;
+            speakText(aiContentDiv.innerText, speakBtn);
         }
 
         // Refresh history to ensure indices are loaded for editing (silent mode)

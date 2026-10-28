@@ -601,12 +601,27 @@ function appendMessage(role, content, animate = true, index = null) {
                 ${renderedText}
             </div>
             <div class="flex justify-between items-center mt-2">
+                <div class="flex gap-2">
+                    <button class="speak-btn p-1 text-gray-400 hover:text-brand-600 transition-colors" title="Speak Text">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.287a6 6 0 0 1 0 7.427M12 18.75V5.25A2.25 2.25 0 0 0 9.75 3H7.5a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h2.25a2.25 2.25 0 0 0 2.25-2.25Z" /></svg>
+                    </button>
+                </div>
                 <span class="text-[10px] text-gray-400 dark:text-gray-500">${timeString}</span>
             </div>
         `;
         bubbleWrapper.innerHTML = headerHtml;
         bubbleWrapper.appendChild(bubble);
         div.appendChild(bubbleWrapper);
+
+        // Wire speak button
+        const speakBtn = bubble.querySelector('.speak-btn');
+        if (speakBtn) {
+            speakBtn.onclick = (e) => {
+                e.stopPropagation();
+                const textToSpeak = bubble.querySelector('.message-content')?.innerText || '';
+                speakText(textToSpeak, speakBtn);
+            };
+        }
     }
 
     (chatMessagesArea || chatContainer).appendChild(div);
@@ -650,6 +665,9 @@ async function sendMessage() {
         let accumulated = "";
         let aiBubble = null;
 
+        // Voice mode: show thinking state
+        if (isVoiceModeActive) updateVoiceModalUI('thinking');
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -672,6 +690,19 @@ async function sendMessage() {
                             scrollToBottom();
                         } else if (event.type.startsWith('tool')) appendLog(event.type, event);
                 }
+            }
+        }
+
+        // Auto-speak after streaming finishes
+        if (aiBubble && accumulated) {
+            const isAutoSpeakEnabled = isVoiceModeActive ||
+                (autoSpeakToggle && autoSpeakToggle.checked);
+            if (isAutoSpeakEnabled) {
+                const bubbleContainer = aiBubble.closest('.message-bubble') ||
+                    aiBubble.closest('.group') ||
+                    aiBubble.parentElement;
+                const speakBtn = bubbleContainer ? bubbleContainer.querySelector('.speak-btn') : null;
+                speakText(aiBubble.innerText, speakBtn);
             }
         }
     } catch (e) { console.error(e); removeTypingIndicator(); }

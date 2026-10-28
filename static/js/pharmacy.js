@@ -1534,10 +1534,12 @@ async function sendMessage() {
 
         // Auto-speak
         if (aiContent) {
-            const isAutoSpeak = (autoSpeakToggle && autoSpeakToggle.checked) || (mobileAutoSpeakToggle && mobileAutoSpeakToggle.checked);
+            const isAutoSpeak = isVoiceModeActive ||
+                (autoSpeakToggle && autoSpeakToggle.checked) ||
+                (mobileAutoSpeakToggle && mobileAutoSpeakToggle.checked);
             if (isAutoSpeak) {
                 const speakBtns = document.querySelectorAll('.speak-btn');
-                const lastSpeakBtn = speakBtns[speakBtns.length - 1];
+                const lastSpeakBtn = speakBtns.length > 0 ? speakBtns[speakBtns.length - 1] : null;
                 speakText(aiContent, lastSpeakBtn);
             }
         }
