@@ -1,12 +1,19 @@
-## Prompt: Comprehensive Clinical Dermatological Examination
+## Prompt: Comprehensive Clinical Dermatological Examination & Image Assessment
 
-Perform a detailed clinical dermatological examination of this image:
-1. Anatomical body part / location: Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, periorbital / eye area, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot). If this is a printed paper lab test or report, state 'medical document'. If non-human object/animal, state 'other'.
-2. Detailed visual findings: Describe in comprehensive detail what is on that location: specific lesions (macules, papules, pustules, comedones/blackheads, patches, plaques), color (erythema/redness, depigmentation, hyperpigmentation), borders, surface texture (raised, flat, rough, scaling, crusting), and pore features.
-3. Suspected dermatological condition / pattern: What specific skin condition, diagnosis, or clinical pattern does this visual presentation most strongly indicate or resemble (e.g., acne vulgaris / comedones, vitiligo, melasma, eczema, rosacea, folliculitis, tinea, etc.)?
+Perform a detailed clinical examination and assessment of this image:
+1. Anatomical Location or Object Category:
+   - Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, periorbital / eye area, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot).
+   - If this is a medication, tablet, pill, capsule, medicine packaging, blister pack, syrup bottle, or cream/ointment tube, state 'medication or tablet' and identify the medicine/product name if readable.
+   - If this is a printed paper lab test, biopsy report, or medical document, state 'medical document'.
+   - If non-human object/animal, state 'other'.
+2. Detailed Visual Findings:
+   - For skin photos: describe specific lesions (macules, papules, pustules, comedones/blackheads, patches, plaques), color (erythema/redness), borders, and surface texture (scaling, crusting).
+   - For medications/tablets: describe tablet shape, color, imprint, brand/generic drug name, dosage/strength (e.g. 500mg, 1%), formulation (tablet, capsule, topical cream, ointment, gel), and packaging details.
+   - For medical reports: extract patient name, date, test names, impressions, and diagnoses.
+3. Suspected Condition or Medication Clinical Role:
+   - For skin photos: what dermatological condition or pattern does this visual presentation most strongly suggest?
+   - For medications: what is this medication typically used for (e.g. antibiotic, antifungal, corticosteroid, antihistamine, acne treatment) and how does it relate to skin therapy?
 
 ---
 NOTE: Passed to the Moondream VLM via model.query(image, exam_prompt).
-The prompt extracts (1) specific anatomical location, (2) detailed description of what is on that location, and (3) suspected dermatological condition/presentation.
-Results feed into create_image_analysis_json() which constructs structured clinical observations including `what_is_on_location` and `suspected_condition_patterns`.
 Source: dermatologist_logic.py (inside analyze_skin_or_report_image tool).

@@ -485,7 +485,11 @@ function initSpeechRecognition() {
         let transcript = '';
         // Start from 0 instead of event.resultIndex to accumulate everything in current session
         for (let i = 0; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
+            const piece = event.results[i][0].transcript;
+            if (transcript && !transcript.endsWith(' ') && !piece.startsWith(' ')) {
+                transcript += ' ';
+            }
+            transcript += piece;
         }
         userInput.value = transcript;
 

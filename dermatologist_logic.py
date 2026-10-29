@@ -288,6 +288,19 @@ def _validate_consistency(analysis: Dict[str, Any]) -> Dict[str, Any]:
         analysis["medical_report"] = med_report
         return analysis
 
+    elif img_type == "medication_photo":
+        analysis["classification_status"] = "identified"
+        analysis["anatomical_region"] = {"value": None, "status": "not_applicable"}
+        med_report["is_report"] = False
+        photo["lesion_identified"] = {"value": False, "status": "not_applicable"}
+        photo["lesion_location"] = None
+        photo["lesion_description"] = "Uploaded image is a photograph of medication, tablet, or pharmaceutical product."
+        photo["visible_findings"] = []
+        photo["distribution"] = "not_applicable"
+        analysis["clinical_skin_photo"] = photo
+        analysis["medical_report"] = med_report
+        return analysis
+
     elif img_type == "other_image":
         analysis["classification_status"] = "identified"
         analysis["anatomical_region"] = {"value": None, "status": "not_applicable"}
@@ -474,7 +487,93 @@ def create_image_analysis_json(
     has_report_evidence = any(m in lower_raw for m in genuine_report_markers)
     is_medical_report = is_explicit_document or (has_report_evidence and "photo of skin" not in lower_raw)
 
-    # 2. Other Image (Non-human / Non-body) Detection:
+    # 2. Medication / Tablet / Pharmaceutical Product Detection:
+    #
+    # IMPORTANT: Moondream may echo the prompt option text "medication or tablet"
+    # into raw_body_part even for skin/body images.  We therefore require that
+    # medication classification is ACTIVELY contradicted by skin-anatomy language
+    # in the findings text before we accept it.
+
+    # Skin-anatomy / morphological terms that definitively prove this is a body
+    # image, not a medication photo, regardless of what lower_bp says.
+    #
+    # NOTE: We check lower_findings ONLY (not lower_raw) because lower_raw also
+    # includes the "clinical use / suspected condition" section.  A cream tube
+    # used for eczema will have "eczema" in that section — that must NOT block
+    # the medication classification.  Condition-name words (acne, eczema,
+    # rosacea…) are intentionally excluded from this list for the same reason.
+    _skin_anatomy_signals = [
+        "macule", "papule", "pustule", "comedo", "comedone", "blackhead",
+        "whitehead", "erythema", "redness", "scaling", "crusting", "crust",
+        "plaque", "patch", "vesicle", "sebaceous", "follicle", "pore",
+        "dermis", "epidermis", "skin texture", "skin lesion", "skin surface",
+        "nasal", "nose bridge", "forehead skin", "cheek skin", "facial skin",
+        "human skin", "body part", "human body", "human nose",
+        "bridge of the nose", "photo of skin", "photograph of skin",
+    ]
+    # Scan findings text only (not condition/use section) to avoid false negatives
+    # on medication images whose clinical description mentions skin conditions.
+    _anatomy_scan_text = lower_findings if lower_findings else lower_raw
+    has_skin_anatomy = any(s in _anatomy_scan_text for s in _skin_anatomy_signals)
+
+    # Body-part terms anywhere in findings or bp negate medication classification.
+    # Use word-boundary matching to avoid false positives:
+    #   'arm' in 'pharmaceutical', 'ear' in 'search', 'chin' in 'machine', etc.
+    _body_part_terms = [
+        "nose", "cheek", "forehead", "arm", "hand", "leg", "foot", "back",
+        "chest", "face", "chin", "scalp", "neck", "ear", "lip", "eye",
+        "skin", "human body", "body part",
+    ]
+    def _has_body_part_word(text_to_scan: str) -> bool:
+        for bp in _body_part_terms:
+            pattern = r"\b" + re.escape(bp) + r"\b"
+            if re.search(pattern, text_to_scan, re.IGNORECASE):
+                return True
+        return False
+
+    body_part_in_bp       = _has_body_part_word(lower_bp)
+    body_part_in_findings = _has_body_part_word(lower_findings)
+    body_part_present     = body_part_in_bp or body_part_in_findings
+
+    medication_markers = [
+        "tablet", "tablets", "pill", "pills", "capsule", "capsules",
+        "blister pack", "medicine pack", "medicine box", "medication", "medicine",
+        "pharmaceutical", "drug package", "syrup bottle", "ointment tube",
+        "cream tube", "topical cream", "topical ointment", "gel tube",
+        "lotion bottle", "strip of tablets", "antibiotic capsule", "lozenge",
+        "hydrocortisone cream", "prescribed medicine", "bottle of pills", "medicine bottle"
+    ]
+
+    # "medication or tablet" in lower_bp is only trusted when the findings text
+    # also contains medication-related language (not skin/anatomy language).
+    _med_bp_terms = [
+        "medication", "medicine", "tablet", "pill", "capsule",
+        "cream tube", "ointment tube", "syrup", "pharmaceutical", "medication or tablet"
+    ]
+    _med_phrase_check = any(
+        f"this is a {m}" in lower_raw or f"photo of {m}" in lower_raw
+        or f"picture of {m}" in lower_raw or f"image of {m}" in lower_raw
+        for m in ["tablet", "pill", "capsule", "medication", "medicine",
+                  "blister pack", "cream tube", "ointment tube"]
+    )
+    is_explicit_medication = (
+        any(m in lower_bp for m in _med_bp_terms) or _med_phrase_check
+    )
+    has_medication_evidence = any(m in lower_raw for m in medication_markers)
+
+    # Final gate: classify as medication ONLY when:
+    #   - explicit or evidential medication signal is present, AND
+    #   - no skin-anatomy language anywhere in the VLM text, AND
+    #   - no body-part terms in bp or findings, AND
+    #   - not already classified as a medical report
+    is_medication_image = (
+        (is_explicit_medication or (has_medication_evidence and not is_medical_report))
+        and not has_skin_anatomy
+        and not body_part_present
+        and "photo of skin" not in lower_raw
+    )
+
+    # 3. Other Image (Non-human / Non-body) Detection:
     other_image_markers = [
         "landscape", "car", "building", "object", "animal", "pet", "dog", "cat", "furniture",
         "nature", "tree", "plant", "room", "food", "drawing", "illustration"
@@ -505,6 +604,14 @@ def create_image_analysis_json(
             "extracted_patient_details": [],
             "diagnoses_and_treatments": []
         },
+        "medication_details": {
+            "is_medication": False,
+            "identified_name": None,
+            "formulation": None,
+            "dosage_strength": None,
+            "packaging_appearance": None,
+            "clinical_class_or_use": None
+        },
         "clinical_skin_photo": {
             "lesion_identified": {"value": False, "status": "not_identified"},
             "lesion_location": None,
@@ -522,7 +629,44 @@ def create_image_analysis_json(
         ]
     }
 
-    if is_medical_report:
+    if is_medication_image:
+        analysis["image_type"] = "medication_photo"
+        analysis["anatomical_region"] = {"value": None, "status": "not_applicable"}
+        analysis["clinical_skin_photo"]["lesion_identified"] = {"value": False, "status": "not_applicable"}
+        analysis["clinical_skin_photo"]["lesion_description"] = "Uploaded image is a photograph of medication, tablet, or pharmaceutical packaging."
+
+        # Extract drug name and details from raw text
+        name_match = re.search(r"(?:medication|medicine|drug|product|brand|tablet)?\s*(?:name)?[:\s]+([a-zA-Z0-9\s'-]+?)(?:,|\.|\n|$)", raw_answer, re.IGNORECASE)
+        drug_name = None
+        if name_match:
+            cand = name_match.group(1).strip()
+            if len(cand) > 2 and cand.lower() not in ["none", "unknown", "n/a", "this is", "photo", "image", "picture", "medication or tablet"]:
+                drug_name = cand
+        if not drug_name:
+            drug_name = raw_condition or "Identified Medication"
+
+        formulation = "tablet / pill"
+        if "capsule" in lower_raw: formulation = "capsule"
+        elif "cream" in lower_raw: formulation = "topical cream"
+        elif "ointment" in lower_raw: formulation = "topical ointment"
+        elif "gel" in lower_raw: formulation = "topical gel"
+        elif "syrup" in lower_raw or "liquid" in lower_raw: formulation = "oral liquid / syrup"
+        elif "lotion" in lower_raw: formulation = "topical lotion"
+        elif "tablet" in lower_raw or "pill" in lower_raw: formulation = "tablet"
+
+        strength_match = re.search(r'(\b\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml|%|iu)\b)', raw_answer, re.IGNORECASE)
+        strength = strength_match.group(1).strip() if strength_match else "Unspecified strength"
+
+        analysis["medication_details"] = {
+            "is_medication": True,
+            "identified_name": drug_name,
+            "formulation": formulation,
+            "dosage_strength": strength,
+            "packaging_appearance": raw_findings[:300] if raw_findings else "Visible medicine packaging or tablet",
+            "clinical_class_or_use": raw_condition or "Pharmaceutical preparation"
+        }
+
+    elif is_medical_report:
         analysis["image_type"] = "medical_report"
         analysis["anatomical_region"] = {"value": None, "status": "not_applicable"}
         analysis["medical_report"]["is_report"] = True
@@ -738,6 +882,7 @@ def analyze_skin_or_report_image(image_path: str) -> str:
     - DO NOT make up, guess, or hallucinate a path (like 'D:\\tmp\\...'). If you don't see a [System Alert] with a path, do not use this tool.
     """
     clean_path = str(image_path).strip().strip("'\"").replace("\\", "/")
+    print(f"\n======================================================================\n[TOOL INVOKED: analyze_skin_or_report_image]\n  Input Image Path: {clean_path}\n======================================================================", flush=True)
     # Locate image file if relative or shifted
     if not os.path.exists(clean_path):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -768,12 +913,17 @@ def analyze_skin_or_report_image(image_path: str) -> str:
         image = Image.open(clean_path).convert('RGB')
         model = get_image_model()
 
-        # Comprehensive Clinical Dermatological Examination Query
+        # Comprehensive Clinical Dermatological & Pharmaceutical Image Query
         exam_prompt = (
-            "Perform a detailed clinical dermatological examination of this image:\n"
-            "1. Anatomical body part / location: Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, periorbital / eye area, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot). If this is a printed paper lab test or report, state 'medical document'. If non-human object/animal, state 'other'.\n"
-            "2. Detailed visual findings: Describe in comprehensive detail what is on that location: specific lesions (macules, papules, pustules, comedones/blackheads, patches, plaques), color (erythema/redness, depigmentation, hyperpigmentation), borders, surface texture (raised, flat, rough, scaling, crusting), and pore features.\n"
-            "3. Suspected dermatological condition / pattern: What specific skin condition, diagnosis, or clinical pattern does this visual presentation most strongly indicate or resemble (e.g., acne vulgaris / comedones, vitiligo, melasma, eczema, rosacea, folliculitis, tinea, etc.)?"
+            "Perform a detailed clinical examination and assessment of this image:\n"
+            "1. Category & Anatomical Location: Where on the human body is this located? (Be specific: e.g. nose, cheek, forehead, chin, lips, ear, neck, abdomen, chest, back, arm, hand, leg, foot). "
+            "If this is a medication, tablet, pill, capsule, blister pack, syrup bottle, cream tube, or ointment packaging, state 'medication or tablet' and state the medicine name if visible. "
+            "If this is a printed medical document or lab report, state 'medical document'. If non-human object/animal, state 'other'.\n"
+            "2. Detailed visual findings: Describe what is visible in detail. "
+            "For skin photos: lesions (macules, papules, pustules, comedones/blackheads), redness, borders, surface texture (scaling, crusting). "
+            "For medications/tablets: tablet shape, color, imprint, brand/generic name, dosage/strength (e.g. 500mg, 1%), and packaging type (blister pack, tube, bottle). "
+            "For reports: patient name, date, test names, and findings.\n"
+            "3. Suspected Condition or Medication Clinical Purpose: What dermatological condition does this suggest, or what is this medication typically used for in clinical practice?"
         )
         result_findings = model.query(image, exam_prompt)
         raw_findings = result_findings.get("answer", "").strip()
@@ -830,6 +980,11 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
         "associated_symptoms": None,
         "firmness": None,
         "redness": None,
+        # Safety-critical fields for medication guidance
+        "allergies": None,                    # Drug/food allergies reported by patient
+        "medical_conditions": None,           # Existing medical conditions (e.g. diabetes, asthma)
+        "current_medications": None,          # Medications patient is currently taking
+        "pregnancy_status": None,             # Pregnant / breastfeeding / not applicable
         "clarification_needed": None,
         "lesion_location": None,              # Patient-reported lesion location
         "image_inferred_region": None,        # Visual AI inferred anatomical region
@@ -874,7 +1029,9 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
 
             # Classify question topic
             combined_q = (last_ai_question + " " + text.lower())
-            if any(w in combined_q for w in ["your name", "what is your name", "may i have your name", "who am i speaking with"]):
+            if any(w in combined_q for w in ["what skin concern", "what problem", "brought you here", "experiencing today", "why have you come", "skin concern", "what brings you", "what symptoms", "tell me what problem"]):
+                last_ai_topic = "complaint"
+            elif any(w in combined_q for w in ["your name", "what is your name", "may i have your name", "who am i speaking with"]):
                 last_ai_topic = "name"
             elif any(w in combined_q for w in ["how old", "your age", "tell me your age"]):
                 last_ai_topic = "age"
@@ -894,7 +1051,7 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                 last_ai_topic = "itching"
             elif any(w in combined_q for w in ["trigger", "worse", "heat", "sun", "stress", "food", "factors"]):
                 last_ai_topic = "triggers"
-            elif any(w in combined_q for w in ["cleanser", "cream", "treatment", "ointment", "medication", "products", "tried anything", "used any"]):
+            elif any(w in combined_q for w in ["cleanser", "cream", "treatment", "ointment", "tried anything", "used any", "applied"]):
                 last_ai_topic = "treatments"
             elif any(w in combined_q for w in ["spread", "spreading", "changes", "new bumps", "grown", "getting bigger"]):
                 last_ai_topic = "spread"
@@ -902,14 +1059,29 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                 last_ai_topic = "associated_symptoms"
             elif any(w in combined_q for w in ["what does the skin", "look like", "color", "red or pink", "firm", "soft"]):
                 last_ai_topic = "appearance"
+            elif any(w in combined_q for w in ["allerg", "allergic", "drug allerg", "react to"]):
+                last_ai_topic = "allergies"
+            elif any(w in combined_q for w in ["medical condition", "health condition", "chronic", "diabetes", "asthma", "existing condition", "diagnosed with"]):
+                last_ai_topic = "medical_conditions"
+            elif any(w in combined_q for w in ["current medication", "taking any medication", "currently taking", "on any medication", "regular medication"]):
+                last_ai_topic = "current_medications"
+            elif any(w in combined_q for w in ["pregnant", "pregnancy", "breastfeed", "nursing"]):
+                last_ai_topic = "pregnancy_status"
             else:
                 last_ai_topic = "other"
 
             # Detect whether assistant has addressed/explained the uploaded photograph
+            # Wide set of phrases so minor wording variation still flips the flag.
             if any(term in text.lower() for term in [
                 "photograph appears to show", "photo appears to show", "image appears to show",
                 "i examined your photograph", "i can see in the photograph", "the photo shows",
-                "the photograph shows", "in the image you uploaded", "the uploaded report lists"
+                "the photograph shows", "in the image you uploaded", "the uploaded report lists",
+                "i can see on your", "looking at the photograph", "looking at the image",
+                "in your photograph", "in your photo", "visible in the image",
+                "from the photograph", "from the image", "based on the photograph",
+                "based on the image", "the image shows", "the picture shows",
+                "the uploaded image", "your uploaded photo", "examining the photograph",
+                "i see in your photo", "i observe in the",
             ]):
                 profile["image_explained"] = True
 
@@ -928,7 +1100,14 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                     img_type = data.get("image_type")
                     profile["image_type"] = img_type
 
-                    if img_type == "medical_report" or data.get("medical_report", {}).get("is_report"):
+                    if img_type == "medication_photo" or data.get("medication_details", {}).get("is_medication"):
+                        profile["image_type"] = "medication_photo"
+                        m_det = data.get("medication_details", {})
+                        m_name = m_det.get("identified_name")
+                        m_form = m_det.get("formulation", "medication")
+                        m_dose = m_det.get("dosage_strength", "")
+                        profile["document_data"]["findings"] = f"Uploaded Medication Image: {m_name or 'Medication'} ({m_form}{', ' + m_dose if m_dose else ''})"
+                    elif img_type == "medical_report" or data.get("medical_report", {}).get("is_report"):
                         profile["image_type"] = "medical_report"
                         med_rep = data.get("medical_report", {})
                         for detail in med_rep.get("extracted_patient_details", []):
@@ -972,7 +1151,14 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                     img_type = data.get("image_type")
                     profile["image_type"] = img_type
 
-                    if img_type == "medical_report" or data.get("medical_report", {}).get("is_report"):
+                    if img_type == "medication_photo" or data.get("medication_details", {}).get("is_medication"):
+                        profile["image_type"] = "medication_photo"
+                        m_det = data.get("medication_details", {})
+                        m_name = m_det.get("identified_name")
+                        m_form = m_det.get("formulation", "medication")
+                        m_dose = m_det.get("dosage_strength", "")
+                        profile["document_data"]["findings"] = f"Uploaded Medication Image: {m_name or 'Medication'} ({m_form}{', ' + m_dose if m_dose else ''})"
+                    elif img_type == "medical_report" or data.get("medical_report", {}).get("is_report"):
                         profile["image_type"] = "medical_report"
                         med_rep = data.get("medical_report", {})
                         for detail in med_rep.get("extracted_patient_details", []):
@@ -1155,6 +1341,13 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                     profile["answered_topics"].add("age")
                     profile["pending_question"] = None
 
+            # Direct mention of pus / crust / scaling / oozing
+            if any(s in clean_lower for s in ["pus", "crust", "crusting", "oozing", "fluid-filled", "scab", "peeling"]) and not any(neg in clean_lower for neg in ["no pus", "no crust", "no crusting", "without pus", "zero pus"]):
+                profile["associated_symptoms"] = "Present (pus, crust, or scaling reported by patient)"
+                profile["answered_topics"].add("associated_symptoms")
+                if "pus" in last_ai_question or "crust" in last_ai_question:
+                    profile["pending_question"] = None
+
             # (F) POSITIVE CONFIRMATIONS ("yes", "yeah", "i do", "there is")
             if clean_lower in ["yes", "yeah", "yep", "i do", "there is", "yes, there is", "yes."]:
                 if last_ai_topic == "associated_symptoms" or any(w in last_ai_question for w in ["pus", "crust", "scaling"]):
@@ -1261,8 +1454,86 @@ def extract_patient_profile(messages: List[BaseMessage]) -> Dict[str, Any]:
                 profile["previous_treatments"] = clean_text
                 profile["answered_topics"].add("treatments")
 
-            if not profile["complaint"] and len(clean_text) > 4 and not any(k in clean_lower for k in ["name", "age", "location", "gender"]):
-                profile["complaint"] = clean_text
+            # (M) SAFETY-CRITICAL FIELDS: ALLERGIES, MEDICAL CONDITIONS, CURRENT MEDICATIONS, PREGNANCY
+            # Allergies
+            allergy_negative = bool(re.search(r'\b(no allerg|not allerg|no known allerg|no drug allerg|nkda|none)\b', clean_lower))
+            allergy_positive = any(t in clean_lower for t in ["allergic to", "allergy to", "react to", "cannot take", "sensitive to"])
+            if last_ai_topic == "allergies" or allergy_positive or allergy_negative:
+                if allergy_negative and not allergy_positive:
+                    profile["allergies"] = "None reported (NKDA)"
+                elif allergy_positive or (last_ai_topic == "allergies" and len(clean_text) > 2):
+                    profile["allergies"] = clean_text
+                profile["answered_topics"].add("allergies")
+                if last_ai_topic == "allergies":
+                    profile["pending_question"] = None
+
+            # Medical conditions (check BEFORE negative-response handler so specific conditions are captured)
+            med_cond_negative = bool(re.search(r'\b(no (?:medical )?condition|no chronic|none|not that i know|no significant|no other condition)\b', clean_lower))
+            med_cond_positive = any(t in clean_lower for t in [
+                "diabetes", "diabetic", "asthma", "hypertension", "high blood pressure", "thyroid",
+                "eczema", "psoriasis", "lupus", "arthritis", "kidney", "liver", "heart disease",
+                "depression", "anxiety", "autoimmune", "cancer", "hiv", "aids"
+            ])
+            if last_ai_topic == "medical_conditions" or med_cond_positive:
+                if med_cond_negative and not med_cond_positive:
+                    profile["medical_conditions"] = "None reported"
+                elif med_cond_positive or (last_ai_topic == "medical_conditions" and len(clean_text) > 2):
+                    profile["medical_conditions"] = clean_text
+                profile["answered_topics"].add("medical_conditions")
+                if last_ai_topic == "medical_conditions":
+                    profile["pending_question"] = None
+
+            # Current medications
+            curr_med_negative = bool(re.search(r'\b(no (?:current )?medication|not taking|nothing|none|no medication|no pills)\b', clean_lower))
+            curr_med_positive = any(t in clean_lower for t in [
+                "taking", "prescribed", "on ", "using", "mg", "tablet", "capsule", "injection",
+                "metformin", "aspirin", "ibuprofen", "steroid", "antibiotic", "antifungal"
+            ])
+            if last_ai_topic == "current_medications":
+                if curr_med_negative and not curr_med_positive:
+                    profile["current_medications"] = "None reported"
+                elif len(clean_text) > 2:
+                    profile["current_medications"] = clean_text
+                profile["answered_topics"].add("current_medications")
+                profile["pending_question"] = None
+
+            # Pregnancy / breastfeeding status
+            if last_ai_topic == "pregnancy_status" or any(t in clean_lower for t in ["pregnant", "breastfeed", "nursing", "not pregnant", "n/a"]):
+                profile["pregnancy_status"] = clean_text
+                profile["answered_topics"].add("pregnancy_status")
+                if last_ai_topic == "pregnancy_status":
+                    profile["pending_question"] = None
+
+            # Handle generic negative / none responses for new topics
+            if is_negative:
+                if last_ai_topic == "allergies" and profile["allergies"] is None:
+                    profile["allergies"] = "None reported (NKDA)"
+                    profile["answered_topics"].add("allergies")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "medical_conditions" and profile["medical_conditions"] is None:
+                    profile["medical_conditions"] = "None reported"
+                    profile["answered_topics"].add("medical_conditions")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "current_medications" and profile["current_medications"] is None:
+                    profile["current_medications"] = "None reported"
+                    profile["answered_topics"].add("current_medications")
+                    profile["pending_question"] = None
+                elif last_ai_topic == "pregnancy_status" and profile["pregnancy_status"] is None:
+                    profile["pregnancy_status"] = "Not applicable / Not reported"
+                    profile["answered_topics"].add("pregnancy_status")
+                    profile["pending_question"] = None
+
+            is_pure_greeting = bool(
+                re.match(r'^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening)|greetings|hi\s+doctor|hello\s+doctor|dr\s+zavian|hi\s+dr\s+zavian|hello\s+dr\s+zavian)[!.,\s]*$', clean_lower) or
+                clean_lower in ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", "hi doctor", "hello doctor", "hello dr zavian", "hi dr zavian"]
+            )
+            if not profile["complaint"]:
+                if last_ai_topic == "complaint" and not is_pure_greeting and len(clean_text) > 2:
+                    profile["complaint"] = clean_text
+                    profile["answered_topics"].add("complaint")
+                    profile["pending_question"] = None
+                elif len(clean_text) > 4 and not is_pure_greeting and not any(k in clean_lower for k in ["name", "age", "location", "gender"]):
+                    profile["complaint"] = clean_text
 
     # (M) EVALUATE MEDICAL REPORT CONFLICT / DISCREPANCY
     doc_name = profile["document_data"].get("name")
@@ -1334,14 +1605,19 @@ def diagnosis_retrieval_tool(query: str) -> str:
     Retrieves internal clinical evidence and differential diagnoses from the dermatology diagnosis store.
     Use after sufficient clinical history has been gathered to explore differential possibilities.
     """
+    print(f"\n{'='*70}\n[TOOL INVOKED: diagnosis_retrieval_tool]\n  Input Query: {query}\n{'='*70}", flush=True)
     try:
         docs = retrieve_with_rerank(get_diagnosis_store(), query)
         context_text = "\n\n".join([doc.page_content for doc in docs])
         prompt = ChatPromptTemplate.from_template(DIAGNOSIS_SUMMARY_PROMPT)
         chain = prompt | llm | StrOutputParser()
-        return chain.invoke({"context": context_text, "query": query})
+        result = chain.invoke({"context": context_text, "query": query})
+        print(f"\n[TOOL OUTPUT: diagnosis_retrieval_tool]\n{result}\n{'='*70}\n", flush=True)
+        return result
     except Exception as e:
-        return f"[Diagnosis Retrieval Notice]: Internal knowledge lookup unavailable ({str(e)}). Proceeding with cautious clinical differential reasoning."
+        err_msg = f"[Diagnosis Retrieval Notice]: Internal knowledge lookup unavailable ({str(e)}). Proceeding with cautious clinical differential reasoning."
+        print(f"\n[TOOL ERROR: diagnosis_retrieval_tool]: {err_msg}\n{'='*70}\n", flush=True)
+        return err_msg
 
 @tool
 def medication_retrieval_tool(query: str) -> str:
@@ -1349,14 +1625,19 @@ def medication_retrieval_tool(query: str) -> str:
     Retrieves evidence-based pharmacotherapy and treatment considerations from the dermatology medication store.
     Use only when treatment information is explicitly requested by the patient or clinically appropriate.
     """
+    print(f"\n{'='*70}\n[TOOL INVOKED: medication_retrieval_tool]\n  Input Query: {query}\n{'='*70}", flush=True)
     try:
         docs = retrieve_with_rerank(get_medication_store(), query)
         context_text = "\n\n".join([doc.page_content for doc in docs])
         prompt = ChatPromptTemplate.from_template(MEDICATION_SUMMARY_PROMPT)
         chain = prompt | llm | StrOutputParser()
-        return chain.invoke({"context": context_text, "query": query})
+        result = chain.invoke({"context": context_text, "query": query})
+        print(f"\n[TOOL OUTPUT: medication_retrieval_tool]\n{result}\n{'='*70}\n", flush=True)
+        return result
     except Exception as e:
-        return f"[Medication Retrieval Notice]: Internal pharmacotherapy lookup unavailable ({str(e)}). Proceeding with general clinical care guidelines."
+        err_msg = f"[Medication Retrieval Notice]: Internal pharmacotherapy lookup unavailable ({str(e)}). Proceeding with general clinical care guidelines."
+        print(f"\n[TOOL ERROR: medication_retrieval_tool]: {err_msg}\n{'='*70}\n", flush=True)
+        return err_msg
 
 @tool
 def search_tool(query: str) -> str:
@@ -1400,6 +1681,7 @@ def doctor_search_tool(location: str) -> str:
     Searches for verified dermatology clinics and specialists in the patient's area.
     Use this tool when the patient explicitly requests local referrals or clinic information.
     """
+    print(f"\n{'='*70}\n[TOOL INVOKED: doctor_search_tool]\n  Input Location: '{location}'\n{'='*70}", flush=True)
     clean_location = location.strip()
     if not clean_location:
         return "Please provide a specific city or region to locate nearby dermatology clinics."
@@ -1429,13 +1711,25 @@ def doctor_search_tool(location: str) -> str:
             "\n\n*Note: MedNexus AI does not share patient records or medical reports with external clinics without explicit patient consent. Please contact the clinic directly to verify appointment availability.*"
         )
     else:
-        return (
-            f"No verified local dermatology clinics were directly identified in our directory for '{clean_location}'.\n\n"
-            "To locate a certified dermatologist safely:\n"
-            "1. Visit the American Academy of Dermatology (AAD) directory at **https://find-a-derm.aad.org/**\n"
-            "2. Contact your regional public hospital or primary healthcare center for a qualified clinical referral.\n"
-            "*Privacy Assurance: Your consultation details are strictly private and never shared externally without your explicit consent.*"
+        # Build a region-aware fallback rather than hard-coding the US AAD directory.
+        fallback_lines = [
+            f"No verified local dermatology clinics were directly identified for '{clean_location}'.",
+            "",
+            "To find a qualified dermatologist in your area, try these steps:",
+            "1. Contact your nearest general or district hospital and ask for a dermatology referral.",
+            "2. Ask your primary care physician (general practitioner / family doctor) for a referral to a local skin specialist.",
+            "3. Search Google Maps or a local health-directory website for 'dermatologist near me' or 'skin specialist [your city]'.",
+        ]
+        # Add US-specific AAD directory only if location appears to be US-based.
+        us_indicators = ["usa", "united states", "us ", " us", "new york", "california", "texas", "florida",
+                         "washington", "chicago", "houston", "phoenix", "philadelphia"]
+        if any(ind in clean_location.lower() for ind in us_indicators):
+            fallback_lines.append("4. Use the American Academy of Dermatology (AAD) directory: **https://find-a-derm.aad.org/**")
+
+        fallback_lines.append(
+            "\n*Privacy Assurance: Your consultation details are strictly private and never shared externally without your explicit consent.*"
         )
+        return "\n".join(fallback_lines)
 
 @tool
 def generate_medical_report(
@@ -1515,6 +1809,7 @@ def generate_medical_report(
         for step in treatment_steps
     ]) if treatment_steps else '<div class="text-[10px] text-slate-500 italic">In-person examination by a licensed dermatologist recommended.</div>'
 
+    print(f"\n{'='*70}\n[TOOL INVOKED: generate_medical_report]\n  Patient Name : {clean_name}\n  Age / Gender : {clean_age} / {clean_gender}\n  Location     : {clean_location}\n  Diagnosis    : {clean_diagnosis}\n  Complaints   : {clean_complaints}\n{'='*70}", flush=True)
     report_id = f"report_{current_date_obj.strftime('%Y%m%d_%H%M%S')}"
 
     return f"""
@@ -1712,18 +2007,32 @@ def _get_next_unasked_question(profile: Dict[str, Any]) -> str:
     """
     Determines the next unasked clinical question in sequence, preventing loops
     and transitioning cleanly to consultation closure when history is complete.
+
+    Order:
+      - If the patient's chief complaint is not yet known, ask about it first.
+      - Only collect demographics (name/age/location/gender) AFTER the complaint is
+        understood, so the conversation begins naturally rather than mechanically.
+      - Then collect clinical history one question at a time.
     """
     answered = profile.get("answered_topics", set())
+
+    # If no complaint is known yet, ask for the main concern first.
+    if not profile.get("complaint") and not profile.get("lesion_location") and not profile.get("image_inferred_region"):
+        return "Could you tell me what skin concern or problem has brought you here today?"
+
+    # Collect demographics progressively (skip any that are already known).
     if not profile.get("name") and "name" not in answered:
         return "May I have your name, please?"
     if not profile.get("age") and "age" not in answered:
         return "How old are you?"
     if not profile.get("location") and "location" not in answered:
-        return "Where are you located?"
+        return "Where are you located (city or region)?"
     if not profile.get("gender") and "gender" not in answered:
         return "What is your biological sex or gender?"
+
+    # Clinical history
     if not profile.get("duration") and "duration" not in answered:
-        return "How long has this lesion been present?"
+        return "How long has this condition been present?"
     if profile.get("pain") is None and "pain" not in answered:
         return "How would you describe any pain or discomfort in that area (e.g. on a 1 to 10 scale)?"
     if profile.get("itching") is None and "itching" not in answered:
@@ -1734,7 +2043,7 @@ def _get_next_unasked_question(profile: Dict[str, Any]) -> str:
         return "Have you tried any cleansers, creams, or other treatments for this so far?"
     if profile.get("spread") is None and "spread" not in answered:
         return "Have you noticed any changes or spreading in that area recently?"
-    # When clinical intake is complete, offer report generation
+    # When clinical intake is complete, offer report generation / next steps
     return "Would you like me to generate a formal medical summary report for you to download or share with your doctor?"
 
 
@@ -1763,6 +2072,8 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
     cleaned = re.sub(r'(?:static/|D:[\\/]|C:[\\/])[^\s]+\.(?:png|jpg|jpeg|webp|jfif)', '', cleaned)
     cleaned = re.sub(r'```json[\s\S]*?```', '', cleaned)
     cleaned = re.sub(r'\{[\s\S]*"image_type"[\s\S]*\}', '', cleaned)
+    # Strip robotic prompt labels (e.g., 'Question:', 'Observation:', 'Finding:', 'Assessment:')
+    cleaned = re.sub(r'(?i)(?:^|\n|(?<=[.!?]))\s*(?:Question|Finding|Observation|Assessment|Note)\s*:\s*', ' ', cleaned)
 
     # 3. Prevent raw tool table dumps (e.g. | Medicine | Dosage | or differential tables)
     if "|" in cleaned and any(term in cleaned for term in ["| Medicine |", "| Drug |", "| Condition |", "| Differential |", "| First-line |", "| Diagnosis |"]):
@@ -1772,7 +2083,7 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
 
     # 4. Prevent definitive diagnostic claims for vague lesions or retrieval candidates
     definitive_patterns = [
-        (r'\b(you have|this is definitively|this is an established case of|confirmed diagnosis is)\s+(hsv-1|herpes|cold sore|melanoma|carcinoma|bacterial infection|tinea|acne|folliculitis)', 
+        (r'\b(?:you have|this is definitively|this is an established case of|confirmed diagnosis is|diagnosed with)\s+(?:a\s+)?(?:confirmed\s+)?(hsv-1|herpes|cold sore|melanoma|carcinoma|bacterial infection|tinea|acne|folliculitis)', 
          r'this presentation could suggest several possibilities, including viral lesions (such as HSV-1), localized folliculitis, or dermatitis. An in-person evaluation is necessary to confirm.'),
         (r'\b(?:and\s+)?(?:this is definitively|this is a definitive|is a confirmed)\s+(?:a\s+)?(?:cold sore|hsv-1|herpes|infection|condition)[^.]*', ''),
     ]
@@ -1781,9 +2092,13 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
     cleaned = re.sub(r'\bdefinitively\b', 'potentially', cleaned, flags=re.IGNORECASE)
 
     # 5. ENFORCE EXACTLY ONE QUESTION RULE & PREVENT REDUNDANT QUESTIONS
+    # Strategy: Allow explanatory sentences before and after the single question.
+    # Only DROP additional questions (sentences ending in '?') beyond the first.
     if "?" in cleaned:
         segments = re.split(r'(?<=[.!?])\s+', cleaned.strip())
-        preserved_segments = []
+        pre_question_segments = []   # Explanatory text before the first question
+        question_segment = None      # The single permitted question
+        post_question_segments = []  # Non-question text after the first question (e.g. "Please take your time.")
         question_count = 0
 
         for seg in segments:
@@ -1845,7 +2160,7 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
                         single_q = _get_next_unasked_question(profile)
 
                     # Check if question asks for prior treatments when already known
-                    elif ("cream" in q_lower or "cleanser" in q_lower or "treatment" in q_lower or "medication" in q_lower or "cleansers" in q_lower) and (profile.get("previous_treatments") is not None or "treatments" in answered):
+                    elif ("cream" in q_lower or "cleanser" in q_lower or "treatment" in q_lower or "cleansers" in q_lower) and (profile.get("previous_treatments") is not None or "treatments" in answered):
                         single_q = _get_next_unasked_question(profile)
 
                     # Check if question asks for spreading / changes when already known
@@ -1861,20 +2176,44 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
                     elif ("itch" in q_lower or "scratch" in q_lower) and (profile.get("itching") is not None or "itching" in answered):
                         single_q = _get_next_unasked_question(profile)
 
-                    preserved_segments.append(single_q)
+                    # Check if question asks for allergies when already known
+                    elif ("allerg" in q_lower) and (profile.get("allergies") is not None or "allergies" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for medical conditions when already known
+                    elif ("medical condition" in q_lower or "existing condition" in q_lower or "chronic" in q_lower) and (profile.get("medical_conditions") is not None or "medical_conditions" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    # Check if question asks for current medications when already known
+                    elif ("current medication" in q_lower or "taking any medication" in q_lower or "regularly" in q_lower) and (profile.get("current_medications") is not None or "current_medications" in answered):
+                        single_q = _get_next_unasked_question(profile)
+
+                    question_segment = single_q
                     question_count += 1
                 else:
-                    # Drop second and subsequent questions
-                    continue
+                    # Drop second and subsequent questions silently
+                    pass
             else:
+                # Non-question segment
                 if question_count == 0:
-                    preserved_segments.append(seg)
+                    pre_question_segments.append(seg)
                 else:
-                    # Drop trailing non-question text after the single question
-                    continue
+                    # Preserve non-question explanatory text that follows the single question
+                    # (e.g. "Please take your time.", "This is for safety purposes.")
+                    # but exclude very short fragments that are likely formatting artefacts.
+                    if len(seg.strip()) > 10:
+                        post_question_segments.append(seg)
 
-        if preserved_segments:
-            cleaned = " ".join(preserved_segments).strip()
+        # Reassemble: explanatory preamble + single question + brief post-question context
+        final_parts = pre_question_segments
+        if question_segment:
+            final_parts.append(question_segment)
+        # Limit post-question tail to at most 2 sentences to avoid verbosity
+        if post_question_segments:
+            final_parts.extend(post_question_segments[:2])
+
+        if final_parts:
+            cleaned = " ".join(final_parts).strip()
 
     # 6. Red-flag safety escalation for severe pain or rapid worsening
     pain_val = str(profile.get("pain", "")).lower()
@@ -1896,11 +2235,27 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
 # TOKEN SAVER & CONTEXT FILTERING
 # ==============================================================================
 
+# Per-tool content limits for context window management.
+# Image analysis JSON can be 1500–2500 chars; diagnosis output ~2000 chars.
+# Truncating these causes the LLM to lose critical clinical findings between turns.
+_TOOL_CONTENT_LIMITS: Dict[str, int] = {
+    "analyze_skin_or_report_image": 2500,   # Structured JSON — must not be truncated heavily
+    "diagnosis_retrieval_tool": 2000,       # Clinical differential reasoning — preserve in full
+    "medication_retrieval_tool": 1800,      # Pharmacotherapy notes — preserve key safety info
+    "doctor_search_tool": 1200,             # Search results — moderate length
+    "search_tool": 1000,                    # General web search — trim older turns
+    "generate_medical_report": 0,           # Always replaced with acknowledgement token
+}
+_DEFAULT_TOOL_LIMIT = 800
+
+
 def filter_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
     """
-    Limits prompt token consumption to strictly prevent Groq 429 TPM overages (8,000 TPM limit).
-    Keeps initial complaint (first 2 messages) and recent turns (last 8 messages).
-    All confirmed clinical facts are already in the dynamic SystemMessage.
+    Limits prompt token consumption while preserving critical clinical context:
+    - Image analysis JSON and diagnosis retrieval outputs are preserved up to their
+      per-tool limits because truncating them causes the LLM to lose key findings.
+    - Keeps initial complaint (first 2 messages) and recent turns (last 8 messages).
+    - All confirmed clinical facts are also reflected in the dynamic SystemMessage.
     """
     system_messages = [msg for msg in messages if isinstance(msg, SystemMessage)]
     other_messages = [msg for msg in messages if not isinstance(msg, SystemMessage)]
@@ -1926,12 +2281,14 @@ def filter_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
             new_kwargs = dict(msg.additional_kwargs or {})
             new_kwargs["name"] = tool_name
 
-            # Prevent HarmonyError if tool message is orphaned
+            # Prevent HarmonyError if tool message is orphaned (no matching AIMessage tool_call)
             if msg.tool_call_id not in valid_tool_call_ids:
-                filtered.append(SystemMessage(content=f"[{tool_name} Observation]: {str(msg.content)[:200]}"))
+                # Use a conservative 400-char truncation for orphaned messages
+                filtered.append(SystemMessage(content=f"[{tool_name} Observation]: {str(msg.content)[:400]}"))
                 continue
 
             if msg.name == "generate_medical_report":
+                # Replace full HTML with a compact acknowledgement to save tokens
                 filtered.append(ToolMessage(
                     content="[Medical Report Generated Successfully - Full HTML rendered in UI]",
                     tool_call_id=msg.tool_call_id,
@@ -1941,8 +2298,10 @@ def filter_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
                     status=msg.status
                 ))
             else:
-                # Truncate bulky tool responses in context to prevent exceeding TPM budget
-                content_to_keep = str(msg.content)[:500] if len(str(msg.content)) > 500 else msg.content
+                # Apply per-tool content limits — preserve image analysis and clinical outputs
+                char_limit = _TOOL_CONTENT_LIMITS.get(tool_name, _DEFAULT_TOOL_LIMIT)
+                raw_content = str(msg.content)
+                content_to_keep = raw_content[:char_limit] if char_limit > 0 and len(raw_content) > char_limit else msg.content
                 filtered.append(ToolMessage(
                     content=content_to_keep,
                     tool_call_id=msg.tool_call_id,
@@ -1961,10 +2320,12 @@ def filter_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
 # PROMPT CONSTRUCTION & GRAPH NODES
 # ==============================================================================
 
-def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
+def build_system_message(profile: Dict[str, Any], messages: Optional[List[BaseMessage]] = None) -> SystemMessage:
     """
     Constructs Dr. Zavian's system prompt dynamically injected with confirmed state,
     active image observations, strict single-question mandate, and report separation.
+    Accepts an optional messages list to enable Phase-4 idempotency checking
+    (suppress duplicate diagnosis_retrieval_tool calls).
     """
     name_str = profile.get("name") or "Not yet provided"
     age_str = profile.get("age") or "Not yet provided"
@@ -1980,6 +2341,11 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
     firm_str = profile.get("firmness") or "Not specified"
     red_str = profile.get("redness") or "Not specified"
     assoc_str = profile.get("associated_symptoms") or "None reported"
+    # Safety-critical fields for medication guidance
+    allergy_str = profile.get("allergies") or "Not yet collected"
+    med_cond_str = profile.get("medical_conditions") or "Not yet collected"
+    curr_meds_str = profile.get("current_medications") or "Not yet collected"
+    preg_str = profile.get("pregnancy_status") or "Not yet collected"
 
     # Patient-reported vs. image-inferred location (kept strictly separate)
     patient_reported_loc = profile.get("lesion_location") or "Not yet reported by patient"
@@ -2036,30 +2402,59 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
             limitations_list = data.get("image_quality", {}).get("limitations", [])
             lim_str = "; ".join(limitations_list) if limitations_list else "Standard visual assessment"
 
-            image_obs_section = (
-                "\n--- ACTIVE IMAGE VISUAL OBSERVATIONS (CONFIRMED OBJECTIVE FINDINGS) ---\n"
-                f"• Image Category: {img_type} (status: {class_status})\n"
-                f"• Visual Anatomical Region: {anat_val or 'Uncertain / Not determined'} (status: {anat_stat})\n"
-                f"• Specific Location: {lesion_loc}\n"
-                f"• What Is On That Location (Findings & Lesions): {what_is_on_loc}\n"
-                f"• Suspected Dermatological Condition/Pattern: {suspected_cond}\n"
-                f"• Visible Features: {vf_str}\n"
-                f"• Distribution: {dist_str}\n"
-                f"• Quality Limitations: {lim_str}\n"
-                "• Visual Safety Rule: Visual observations alone cannot confirm a definitive diagnosis without an in-person physical examination.\n"
-            )
+            if img_type == "medication_photo":
+                med_det = data.get("medication_details", {})
+                med_name = med_det.get("identified_name") or "Medication / Tablet product"
+                med_form = med_det.get("formulation") or "tablet / pharmaceutical formulation"
+                med_dose = med_det.get("dosage_strength") or "unspecified strength"
+                image_obs_section = (
+                    "\n--- ACTIVE IMAGE VISUAL OBSERVATIONS (MEDICATION / PHARMACEUTICAL IMAGE) ---\n"
+                    f"• Image Category: medication_photo (status: identified)\n"
+                    f"• Identified Medication / Product: {med_name}\n"
+                    f"• Formulation & Form: {med_form}\n"
+                    f"• Dosage / Strength: {med_dose}\n"
+                    f"• Packaging & Appearance: {med_det.get('packaging_appearance', 'Visible medication/packaging')}\n"
+                    f"• Clinical Class / Notes: {med_det.get('clinical_class_or_use', 'Pharmaceutical preparation')}\n"
+                    "• Medication Safety Rule: Visual identification of a tablet or medication from a photograph is educational only and cannot replace verification by a pharmacist or licensed physician.\n"
+                )
+            else:
+                image_obs_section = (
+                    "\n--- ACTIVE IMAGE VISUAL OBSERVATIONS (CONFIRMED OBJECTIVE FINDINGS) ---\n"
+                    f"• Image Category: {img_type} (status: {class_status})\n"
+                    f"• Visual Anatomical Region: {anat_val or 'Uncertain / Not determined'} (status: {anat_stat})\n"
+                    f"• Specific Location: {lesion_loc}\n"
+                    f"• What Is On That Location (Findings & Lesions): {what_is_on_loc}\n"
+                    f"• Suspected Dermatological Condition/Pattern: {suspected_cond}\n"
+                    f"• Visible Features: {vf_str}\n"
+                    f"• Distribution: {dist_str}\n"
+                    f"• Quality Limitations: {lim_str}\n"
+                    "• Visual Safety Rule: Visual observations alone cannot confirm a definitive diagnosis without an in-person physical examination.\n"
+                )
 
             # If image has not yet been explained to the patient on this turn:
             if not profile.get("image_explained"):
-                if img_type == "clinical_skin_photo":
+                if img_type == "medication_photo":
+                    med_det = data.get("medication_details", {})
+                    med_name = med_det.get("identified_name") or "Medication / Tablet product"
+                    med_form = med_det.get("formulation") or "tablet / pharmaceutical formulation"
+                    med_dose = med_det.get("dosage_strength") or "unspecified strength"
+                    immediate_image_instruction = (
+                        f"\n[MANDATORY WORKFLOW FOR THIS RESPONSE - MEDICATION / TABLET IMAGE UPLOAD]:\n"
+                        f"The patient uploaded a photograph of a medication or tablet, not a clinical skin photograph.\n"
+                        f"1. Acknowledge and identify the medication/tablet shown ('{med_name}', {med_form}, {med_dose}).\n"
+                        f"2. Ask the patient how they are using it: whether they are currently taking it, used it in the past for this skin condition, or have questions about it.\n"
+                        f"3. Note that visual identification cannot replace checking the pharmacy label or consulting a doctor.\n"
+                        f"4. Integrate this into their medical history without issuing a prescription or dosing directive.\n"
+                    )
+                elif img_type == "clinical_skin_photo":
                     immediate_image_instruction = (
                         f"\n[MANDATORY WORKFLOW FOR THIS RESPONSE - NEW IMAGE UPLOAD]:\n"
-                        f"In your response, you must immediately acknowledge and describe the photograph to the patient in compassionate, professional terms:\n"
+                        f"In your response, you must immediately acknowledge and describe the photograph to the patient in warm, everyday conversational language (NO medical jargon, NO robotic headers):\n"
                         f"1. Acknowledge the anatomical location ('{anat_val or 'area shown'}') and specific site ('{lesion_loc}').\n"
-                        f"2. Describe in detail what you observe on that location ('{what_is_on_loc}').\n"
-                        f"3. Note the suspected dermatological condition or pattern suggested by the visual presentation ('{suspected_cond}'), explaining that while the visual features suggest this possibility, an in-person clinical examination is required to confirm.\n"
+                        f"2. Describe what you observe using simple, everyday language (e.g., say 'redness and small bumps' rather than clinical terms like 'macules/papules' or 'pustules'). Translate raw visual notes ('{what_is_on_loc}') into plain, patient-friendly terms.\n"
+                        f"3. Note common patterns or conditions this might suggest in simple words ('{suspected_cond}'), explaining gently that an in-person check by a doctor is needed to know for sure.\n"
                         f"4. Do NOT ask 'which body part is it on?' or 'what does it look like?'.\n"
-                        f"5. Then, ask at most ONE relevant clinical history follow-up question (e.g. duration, pain/itching, or triggers).\n"
+                        f"5. End naturally with at most ONE gentle follow-up question (e.g. how long it has been there). NEVER prefix it with 'Question:' or any header label.\n"
                     )
                 elif img_type == "medical_report":
                     immediate_image_instruction = (
@@ -2087,34 +2482,87 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
             "Then, ask ONE simple, gentle question.\n"
         )
 
-    # Check if clinical history intake is complete
+    # Check if clinical history intake is complete.
+    # Requires: known complaint (or known location from image/patient report), duration,
+    # pain, itching, at least one of triggers/treatments/spread, AND the safety-critical
+    # fields needed to provide safe medication guidance (allergies, conditions, medications).
+    has_complaint_or_location = bool(
+        profile.get("complaint") or
+        profile.get("lesion_location") or
+        profile.get("image_inferred_region")
+    )
+    safety_fields_collected = bool(
+        profile.get("allergies") is not None and
+        profile.get("medical_conditions") is not None and
+        profile.get("current_medications") is not None
+    )
     history_complete = bool(
-        profile.get("duration") and 
-        profile.get("pain") is not None and 
-        profile.get("itching") is not None and 
-        (profile.get("triggers") is not None or profile.get("previous_treatments") is not None or profile.get("spread") is not None)
+        has_complaint_or_location and
+        profile.get("duration") and
+        profile.get("pain") is not None and
+        profile.get("itching") is not None and
+        (
+            profile.get("triggers") is not None or
+            profile.get("previous_treatments") is not None or
+            profile.get("spread") is not None
+        )
     )
 
-    consolidated_query = f"{patient_reported_loc or inferred_region or 'skin'} lesion; duration: {dur_str}; pain: {pain_str}; itching: {itch_str}; triggers: {triggers_str}; treatments: {tx_str}; spread: {spread_str}"
+    # Build the consolidated clinical query for the RAG tool.
+    consolidated_query = (
+        f"{patient_reported_loc or inferred_region or 'skin'} lesion; "
+        f"complaint: {complaint_str}; duration: {dur_str}; "
+        f"pain: {pain_str}; itching: {itch_str}; "
+        f"triggers: {triggers_str}; treatments: {tx_str}; spread: {spread_str}; "
+        f"allergies: {allergy_str}; medical_conditions: {med_cond_str}; "
+        f"current_medications: {curr_meds_str}"
+    )
+
+    # Determine whether diagnosis retrieval has already been performed in this thread.
+    # This suppresses repeated mandatory calls and prevents an infinite tool-call loop.
+    diagnosis_already_retrieved = False
+    if messages:
+        diagnosis_already_retrieved = any(
+            isinstance(m, ToolMessage) and getattr(m, "name", "") == "diagnosis_retrieval_tool"
+            for m in messages
+        )
 
     phase4_transition_section = ""
     if history_complete:
+        # Pre-compute the idempotency note to avoid inline ternary inside string concat
+        _diag_idempotency_note = (
+            "   (Note: 'diagnosis_retrieval_tool' has ALREADY been called \u2014 its output is in the"
+            " conversation history. DO NOT call it again. Use the existing result.)\n"
+            if diagnosis_already_retrieved else
+            "   If 'diagnosis_retrieval_tool' has ALREADY been called and its output is in the"
+            " conversation history, DO NOT call it again \u2014 use the existing result.\n"
+        )
         phase4_transition_section = (
             "\n[PHASE 4 TRANSITION - MANDATORY ACTION]:\n"
             "Clinical history intake is COMPLETE. All key diagnostic dimensions are gathered.\n"
-            "YOU ARE FORBIDDEN FROM ASKING MORE HISTORY QUESTIONS OR REPEATING PREVIOUS QUESTIONS (such as asking about spreading, pain, itching, or triggers again).\n"
+            "YOU ARE FORBIDDEN FROM ASKING MORE HISTORY QUESTIONS OR REPEATING PREVIOUS QUESTIONS "
+            "(such as asking about spreading, pain, itching, or triggers again).\n"
             "YOU MUST NOW:\n"
-            f"1. Call 'diagnosis_retrieval_tool' with the consolidated query: '{consolidated_query}'.\n"
-            "2. Present 2 to 3 differential diagnosis possibilities clearly explaining supporting features and missing features.\n"
+            f"1. If you have NOT yet called 'diagnosis_retrieval_tool' in this conversation, call it NOW with the consolidated query: '{consolidated_query}'.\n"
+            + _diag_idempotency_note +
+            "2. Present 2 to 3 differential diagnosis possibilities clearly, explaining supporting features and missing/conflicting features for each.\n"
             "3. State the clinical uncertainty and explain that an in-person physical clinical examination by a dermatologist is required for confirmation.\n"
-            "4. Provide safe, practical home care guidance (e.g. gentle non-comedogenic cleansing, avoid picking or squeezing blackheads, sun protection).\n"
-            "5. Conclude with this single question: 'Would you like me to generate a formal medical summary report for you to download or share with your doctor?'\n"
+            "4. Provide safe, practical home care guidance (e.g. gentle non-comedogenic cleansing, avoid picking or squeezing, sun protection).\n"
+            "5. Ask if the patient would like treatment guidance, or offer: 'Would you like me to generate a formal medical summary report for you to download or share with your doctor?'\n"
         )
 
+    # Enrich the document/image section with document findings for medical report context
+    doc_findings_note = ""
+    if doc_data.get("findings"):
+        doc_findings_note = f"• Uploaded Document Findings: {doc_data['findings']}\n"
+    doc_dates_note = ""
+    if doc_data.get("dates"):
+        doc_dates_note = f"• Document Dates: {', '.join(doc_data['dates'])}\n"
+
     prompt = (
-        "ROLE: You are Dr. Zavian, an expert clinical AI decision-support specialist in Dermatology at MedNexus AI.\n"
-        "TONE & STYLE: Compassionate, concise (1-2 sentences), professional. Use simple everyday language.\n"
-        "CLINICAL SCOPE: You provide careful informational guidance and differential assessments. You DO NOT issue legally binding prescriptions or declare definitive diagnoses without physical examination.\n\n"
+        "ROLE: You are Dr. Zavian, a compassionate AI dermatology specialist at MedNexus AI.\n"
+        "TONE & STYLE: Warm, friendly, and professional. Use simple everyday language. Be reassuring.\n"
+        "CLINICAL SCOPE: You provide informational guidance and differential assessments. You DO NOT issue legally binding prescriptions or declare definitive diagnoses without physical examination.\n\n"
 
         "--- CURRENT CONFIRMED PATIENT RECORD (DO NOT RE-ASK KNOWN FIELDS) ---\n"
         f"• Name: {name_str}\n"
@@ -2131,9 +2579,15 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
         f"• Surface Texture / Firmness: {firm_str}\n"
         f"• Color / Redness: {red_str}\n"
         f"• Associated Findings (Pus / Crust): {assoc_str}\n"
+        f"• Known Allergies (Drug/Food): {allergy_str}\n"
+        f"• Existing Medical Conditions: {med_cond_str}\n"
+        f"• Current Medications / Supplements: {curr_meds_str}\n"
+        f"• Pregnancy / Breastfeeding Status: {preg_str}\n"
         f"• Patient-Reported Lesion Location: {patient_reported_loc}\n"
         f"• Image-Inferred Anatomical Region (from photo): {inferred_str}\n"
         f"• Image Status: {img_status}\n"
+        f"{doc_findings_note}"
+        f"{doc_dates_note}"
         f"{doc_section}"
         f"{image_obs_section}"
         f"{immediate_image_instruction}"
@@ -2141,6 +2595,10 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
         f"{phase4_transition_section}\n"
 
         "--- STRICT WORKFLOW PROTOCOL ---\n"
+        "0. FIRST CONTACT / GREETING:\n"
+        "   - If the patient's Chief Complaint is 'Not yet provided' and this appears to be the first or second turn of the conversation,"
+        " greet the patient warmly as Dr. Zavian and ask them what skin concern or problem has brought them in today."
+        " Do NOT immediately launch into a demographic questionnaire.\n"
         "1. SINGLE QUESTION MANDATE (ZERO TOLERANCE): You must ask EXACTLY ONE question per response. Never combine questions with 'and', commas, or semicolons.\n"
         "2. IMAGE ANALYSIS (MANDATORY TOOL CALL):\n"
         "   - When an image is uploaded (indicated by '[System Alert: User uploaded an image. Local Path: ...]'), you MUST IMMEDIATELY call the 'analyze_skin_or_report_image' tool with the exact Local Path provided before offering any diagnostic reasoning or follow-up question.\n"
@@ -2150,26 +2608,41 @@ def build_system_message(profile: Dict[str, Any]) -> SystemMessage:
         "   - Once 'analyze_skin_or_report_image' has executed (or when active image observations are in context), explain the visible findings in simple, patient-friendly terms.\n"
         "   - If the patient asks 'What is in the image?' or says 'You can see it in the image', answer directly from the analyzed observations. Name the identified body part and visible skin findings. Do NOT ask 'which body part is it on?'.\n"
         "   - Distinguish visible observations from possible diagnoses: a raised bump with redness is an observation; folliculitis or dermatitis is an interpretation, not a proven fact.\n"
-        "3. PHASE 1: DEMOGRAPHIC INTAKE: Collect Name -> Age -> Location -> Gender INDIVIDUALLY. If a field is known above, DO NOT ask for it again. Ask only for the next missing field.\n"
-        "4. PHASE 2: CLINICAL INVESTIGATION: After basic info, ask relevant history ONE question at a time:\n"
-        "   - Duration (if Patient-Reported Lesion Location or Image-Inferred Anatomical Region is known, do NOT ask for location)\n"
-        "   - Pain vs Itching (evaluate separately; never assume pain score is an itching score)\n"
-        "   - Triggers (heat, sun, stress) & prior treatments (creams, medications)\n"
-        "5. PHASE 3: REPORT DISCREPANCIES: If an uploaded medical report contains a different name or conflicting details, explain the discrepancy neutrally. Never merge unverified report data.\n"
-        "6. PHASE 4: DIFFERENTIAL DIAGNOSIS & RETRIEVAL:\n"
-        "   - Call 'diagnosis_retrieval_tool' when sufficient history is gathered.\n"
+        "4. HISTORY COLLECTION (NATURAL CONVERSATION):\n"
+        "   - Start by understanding the patient's main concern. Only then collect demographics (name, age, location, gender) one field at a time.\n"
+        "   - If any field is already known above, DO NOT ask for it again.\n"
+        "   - After demographics, ask relevant clinical history ONE question at a time: duration, pain, itching, triggers, prior treatments, spreading/changes.\n"
+        "   - After the initial clinical history, collect safety fields for medication guidance: allergies, existing medical conditions, and current medications. These are REQUIRED before discussing any treatment.\n"
+        "   - If Patient-Reported Lesion Location or Image-Inferred Anatomical Region is already known, do NOT ask 'where is it?'\n"
+        "   - Keep questions progressive and contextual — tailor them to what the patient has already shared.\n"
+        "5. REPORT DISCREPANCIES: If an uploaded medical report contains a different name or conflicting details, explain the discrepancy neutrally. Never merge unverified report data.\n"
+        "6. DIFFERENTIAL DIAGNOSIS & RETRIEVAL:\n"
+        "   - Call 'diagnosis_retrieval_tool' once when sufficient history is gathered (see PHASE 4 TRANSITION above if triggered).\n"
+        "   - DO NOT call 'diagnosis_retrieval_tool' more than once per consultation unless new significant information arrives.\n"
         "   - Maintain a DIFFERENTIAL DIAGNOSIS (e.g. 'This could suggest several possibilities, including acne, folliculitis, or early viral lesions'). NEVER claim a single disease is confirmed from chat/photo alone.\n"
-        "   - Explain uncertainty clearly and recommend physical clinical examination.\n"
-        "7. PHASE 5: TREATMENT & MEDICATION GUIDANCE:\n"
-        "   - Call 'medication_retrieval_tool' ONLY when the patient asks for treatment or when clinically justified.\n"
-        "   - Never output raw medication tables. Offer educational information only, not personal prescriptions.\n"
-        "8. PHASE 6: MEDICAL REPORT GENERATION:\n"
+        "   - Explain uncertainty clearly and recommend physical clinical examination by a licensed dermatologist.\n"
+        "7. TREATMENT & MEDICATION GUIDANCE:\n"
+        "   - Call 'medication_retrieval_tool' ONLY when the patient asks for treatment or when clinically justified after diagnosis discussion.\n"
+        "   - MANDATORY SAFETY CHECK before any medication guidance: Verify the patient's Known Allergies, Existing Medical Conditions, Current Medications/Supplements, and Pregnancy/Breastfeeding Status from the patient record above.\n"
+        "   - If any of those safety fields show 'Not yet collected', ask for that information BEFORE providing medication guidance.\n"
+        "   - Screen for drug interactions between any suggested treatment and the patient's current medications.\n"
+        "   - Never output raw medication tables. Offer educational information only — not a personal prescription.\n"
+        "   - Make clear when treatment requires assessment by a licensed clinician.\n"
+        "8. MEDICAL REPORT GENERATION:\n"
         "   - When the user requests a medical report or care plan download, call 'generate_medical_report'.\n"
-        "   - Populate fields strictly using known patient history above. Do not re-ask duration or demographics.\n"
+        "   - Populate the 'complaints' field with the FULL patient history — not just the chief complaint. Include duration, pain, itching, triggers, prior treatments, and where applicable image findings and document findings.\n"
+        "   - Populate the 'notes' field with clinical assessment notes including image observations, document findings, and uncertainty statements.\n"
+        "   - Populate the 'diagnosis' field with the differential assessment — not a single confirmed diagnosis.\n"
+        "   - DO NOT re-ask for information already available in the confirmed patient record above.\n"
         "   - After the tool executes, reply ONLY with: 'I have generated your detailed medical report. You can download it below.'\n"
-        "9. PHASE 7: LOCAL DOCTOR RECOMMENDATION:\n"
-        "   - When requested, call 'doctor_search_tool'. Never invent clinic names or phone numbers.\n"
+        "9. LOCAL DOCTOR RECOMMENDATION:\n"
+        "   - When requested, call 'doctor_search_tool' using the patient's confirmed location.\n"
+        "   - If the search returns no local results, suggest the patient contact their nearest general hospital or public health centre for a dermatology referral — do not assume a US-based directory applies to all patients.\n"
+        "   - Never invent clinic names, addresses, or phone numbers.\n"
         "   - Explicitly note that patient records are never shared externally without consent.\n"
+        "10. REPORT SHARING:\n"
+        "   - After the report is generated, explain to the patient that they can download it using the 'DOWNLOAD REPORT' button and bring or send it to their dermatologist.\n"
+        "   - Do NOT claim the report has been emailed or transmitted automatically — it has not.\n"
     )
     return SystemMessage(content=prompt)
 
@@ -2215,14 +2688,21 @@ def chat_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     messages = state.get("messages", [])
     profile = extract_patient_profile(messages)
-    system_msg = build_system_message(profile)
+    system_msg = build_system_message(profile, messages=messages)
 
     # Filter out older system messages and inject updated state-aware system prompt
     filtered_history = [m for m in messages if not isinstance(m, SystemMessage)]
     full_messages = [system_msg] + filter_messages(filtered_history)
 
     # Call LLM with bounded retry
+    print(f"\n[CHAT NODE] Invoking LLM with {len(full_messages)} messages in context...", flush=True)
     response: AIMessage = invoke_llm_with_retry(llm_with_tools, full_messages)
+    if response.tool_calls:
+        print(f"[CHAT NODE -> LLM Selected Tool Calls]:", flush=True)
+        for tc in response.tool_calls:
+            print(f"  -> Tool: {tc.get('name')} | Input Args: {tc.get('args')}", flush=True)
+    elif response.content:
+        print(f"[CHAT NODE -> LLM Text Response]:\n{str(response.content)[:300]}...", flush=True)
 
     # If the response contains text and no active tool call, validate and sanitize output
     if response.content and not response.tool_calls:
@@ -2243,10 +2723,16 @@ class ChatbotState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
 graph = StateGraph(ChatbotState)
+# Restore deterministic image pre-processing node before chat_node.
+# input_preprocess_node runs Moondream VLM synchronously when a new image is
+# detected, so chat_node always receives structured JSON analysis in state —
+# the LLM is never asked to guess findings from a raw file path.
+graph.add_node("preprocess", input_preprocess_node)
 graph.add_node("chat_node", chat_node)
 graph.add_node("tools", tool_node)
 
-graph.add_edge(START, "chat_node")
+graph.add_edge(START, "preprocess")
+graph.add_edge("preprocess", "chat_node")
 graph.add_conditional_edges("chat_node", tools_condition)
 graph.add_edge("tools", "chat_node")
 

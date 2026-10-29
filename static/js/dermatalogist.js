@@ -521,7 +521,11 @@ function initSpeechRecognition() {
         let transcript = '';
         // Start from 0 instead of event.resultIndex to accumulate everything in current session
         for (let i = 0; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
+            const piece = event.results[i][0].transcript;
+            if (transcript && !transcript.endsWith(' ') && !piece.startsWith(' ')) {
+                transcript += ' ';
+            }
+            transcript += piece;
         }
         userInput.value = transcript;
 
@@ -1817,6 +1821,12 @@ async function sendMessage() {
                                 aiContentDiv.innerHTML = marked.parse(accumulatedText).replace(/\<table\>/g, '\<div class="table-wrapper"\>\<table\>').replace(/\<\/table\>/g, '\</table\>\</div\>');
                             }
                             chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                            // In voice mode, update modal transcript live with natural spacing
+                            if (isVoiceModeActive && modalTranscript) {
+                                modalTranscript.textContent = aiContentDiv.innerText || accumulatedText;
+                                modalTranscript.scrollTop = modalTranscript.scrollHeight;
+                            }
                         } else if (event.type === 'tool_start') {
                             appendLog('tool_start', event);
                         } else if (event.type === 'tool_end') {

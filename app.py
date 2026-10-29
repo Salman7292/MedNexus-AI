@@ -675,10 +675,20 @@ def chat():
             chatbot_compiled = current_logic.chatbot_compiled
             
             message_content = user_input or ""
+            local_path = None
             if image_url:
                 local_path = os.path.abspath(os.path.join(app.root_path, image_url.lstrip('/'))).replace('\\', '/')
                 message_content = f"[System Alert: User uploaded an image. Local Path: {local_path}] {message_content}"
 
+            print(f"\n{'='*80}", flush=True)
+            print(f"[CONSULTATION INTAKE] Specialist: {specialist.upper()} | Thread ID: {thread_id}", flush=True)
+            print(f"[PATIENT INPUT]: {user_input or '(No text message provided)'}", flush=True)
+            if image_url:
+                print(f"[ATTACHED IMAGE URL]: {image_url}", flush=True)
+                print(f"[RESOLVED LOCAL PATH]: {local_path}", flush=True)
+            print(f"{'='*80}\n", flush=True)
+
+            accumulated_response = ""
             for chunk in chatbot_compiled.stream(
                 {"messages": [HumanMessage(content=message_content)]},
                 config={"configurable": {"thread_id": thread_id}},
@@ -686,28 +696,66 @@ def chat():
             ):
                 messages_chunk = chunk if isinstance(chunk, (list, tuple)) else [chunk]
                 for message in messages_chunk:
+                    # 1. LLM Tool Invocation Request (Shows what input goes to the tool)
                     if isinstance(message, AIMessage) and message.tool_calls:
+                        print(f"\n{'-'*80}", flush=True)
+                        print(f"[LLM OUTPUT -> TOOL INVOCATION REQUEST]", flush=True)
                         for tool_call in message.tool_calls:
-                            yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': tool_call.get('name'), 'args': tool_call.get('args'), 'tool_call_id': tool_call.get('id')})}\n\n"
+                            t_name = tool_call.get('name')
+                            t_args = tool_call.get('args')
+                            t_id = tool_call.get('id')
+                            print(f"  Tool Name       : {t_name}", flush=True)
+                            print(f"  Tool Call ID    : {t_id}", flush=True)
+                            print(f"  Tool Input Args : {json.dumps(t_args, indent=4, default=str)}", flush=True)
+                            yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': t_name, 'args': t_args, 'tool_call_id': t_id})}\n\n"
+                        print(f"{'-'*80}\n", flush=True)
+
+                    # 2. Tool Execution Output (Shows what the tool returned)
                     if isinstance(message, ToolMessage):
+                        print(f"\n{'>'*80}", flush=True)
+                        print(f"[TOOL OUTPUT RETURNED TO AGENT]", flush=True)
+                        print(f"  Tool Name    : {message.name}", flush=True)
+                        print(f"  Tool Call ID : {message.tool_call_id}", flush=True)
+                        out_str = str(message.content)
+                        if len(out_str) > 2000:
+                            print(f"  Tool Output (First 2000 chars):\n{out_str[:2000]}...\n  [Total output size: {len(out_str)} characters]", flush=True)
+                        else:
+                            print(f"  Tool Output:\n{out_str}", flush=True)
+                        print(f"{'<'*80}\n", flush=True)
+
                         yield f"data: {json.dumps({'type': 'tool_end', 'tool_name': message.name, 'output': message.content, 'tool_call_id': message.tool_call_id})}\n\n"
                         if message.name in ["generate_medical_report", "generate_pharmacy_report"]:
                              yielded_tokens += 1
                              yield f"data: {json.dumps({'type': 'token', 'content': message.content})}\n\n"
+
+                    # 3. LLM Final Output to Patient (PRESERVE leading/trailing token spacing)
                     if isinstance(message, AIMessage) and message.content:
-                        content = message.content
-                        if isinstance(content, list):
-                            content = " ".join([c.get('text', '') if isinstance(c, dict) else str(c) for c in content])
-                        content = re.sub(r'\[System Alert:[^\]]+\]', '', str(content)).strip()
+                        raw_content = message.content
+                        if isinstance(raw_content, list):
+                            content = " ".join([c.get('text', '') if isinstance(c, dict) else str(c) for c in raw_content])
+                        else:
+                            content = str(raw_content)
+                        # Strip leaked internal alert tags but NEVER strip token whitespace
+                        content = re.sub(r'\[System Alert:[^\]]+\]', '', content)
                         if content:
+                            accumulated_response += content
                             yielded_tokens += 1
                             yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
+            # Print complete LLM patient response cleanly in logs
+            if accumulated_response.strip():
+                print(f"\n{'-'*80}", flush=True)
+                print(f"[LLM OUTPUT -> PATIENT RESPONSE]", flush=True)
+                print(f"{accumulated_response.strip()}", flush=True)
+                print(f"{'-'*80}\n", flush=True)
+
             if yielded_tokens == 0:
                 fallback_text = "I have noted your information. To assist you accurately, could you tell me more about what you are observing?"
+                print(f"[AGENT WARNING] 0 tokens yielded. Sending fallback response.", flush=True)
                 yield f"data: {json.dumps({'type': 'token', 'content': fallback_text})}\n\n"
 
         except Exception as e:
+            print(f"\n[AGENT EXCEPTION] Error in chat execution stream: {str(e)}", flush=True)
             fallback_error = "I apologize, but our clinical service experienced a brief interruption. Your consultation details have been safely preserved. Please send your message again so we can continue."
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
             yield f"data: {json.dumps({'type': 'token', 'content': fallback_error})}\n\n"
