@@ -120,7 +120,23 @@ GOOGLE_CLIENT_SECRET="your_google_client_secret_here"
 
 *(Note: Replace the placeholder values with your actual API keys if you are setting this up from scratch.)*
 
+
 ---
+
+| Variable | Where to get it |
+|---|---|
+| GROQ_API_KEY | [Get Groq API Key](https://console.groq.com/keys) |
+| PINECONE_API_KEY | [Get Pinecone API Key](https://app.pinecone.io/) |
+| TAVILY_API_KEY | [Get Tavily API Key](https://app.tavily.com/) |
+| LANGSMITH_API_KEY | [Get LangSmith API Key](https://smith.langchain.com/settings) |
+| MOONDREAM_KEY | [Get Moondream API Key](https://console.moondream.ai/) |
+| GOOGLE_API_KEY | [Get Google API Key](https://aistudio.google.com/app/apikey) |
+| GOOGLE_CLIENT_ID | [Create Google OAuth Client](https://console.cloud.google.com/auth/clients) |
+| GOOGLE_CLIENT_SECRET | [Create Google OAuth Client](https://console.cloud.google.com/auth/clients) |
+
+---
+
+
 
 ## 🚀 Running the Application
 
