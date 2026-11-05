@@ -1051,6 +1051,9 @@ async function loadHistory(threadId) {
             }
         }
         chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'instant' });
+        if (userInput && !userInput.disabled && !isVoiceModeActive) {
+            userInput.focus();
+        }
     } catch (e) {
         console.error("Failed to load history", e);
         const errorHtml = '<div class="text-center text-gray-400 mt-10">Failed to load conversation history.</div>';
@@ -1422,6 +1425,7 @@ async function sendMessage() {
     if (welcomeMsg) welcomeMsg.remove();
 
     userInput.value = '';
+    userInput.disabled = true;
     if (window.resetInputHeight) resetInputHeight();
 
     if (sendBtn) {
@@ -1563,6 +1567,23 @@ async function sendMessage() {
         if (stopBtn) {
             stopBtn.classList.add('hidden', 'scale-0', 'opacity-0');
             stopBtn.classList.remove('flex', 'scale-100', 'opacity-100');
+        }
+        // Re-enable and automatically refocus input field after response completion
+        if (userInput) {
+            userInput.disabled = false;
+            if (!isVoiceModeActive) {
+                userInput.focus();
+                requestAnimationFrame(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                });
+                setTimeout(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                }, 50);
+            }
         }
         if (isVoiceModeActive && !window.speechSynthesis.speaking) {
             updateVoiceModalUI('ready');

@@ -639,6 +639,7 @@ async function sendMessage() {
 
     if (chatMessagesArea?.querySelector('#welcome-message')) chatMessagesArea.innerHTML = '';
     userInput.value = '';
+    userInput.disabled = true;
     appendMessage('user', text);
 
     // Show Media Vault button if user sent an image
@@ -710,6 +711,24 @@ async function sendMessage() {
             }
         }
     } catch (e) { console.error(e); removeTypingIndicator(); }
+    finally {
+        if (userInput) {
+            userInput.disabled = false;
+            if (!isVoiceModeActive) {
+                userInput.focus();
+                requestAnimationFrame(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                });
+                setTimeout(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                }, 50);
+            }
+        }
+    }
 }
 
 function showTypingIndicator() {

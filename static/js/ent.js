@@ -1063,6 +1063,9 @@ async function loadHistory(threadId, silent = false) {
         }
         // Scroll to bottom after history is loaded
         chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'instant' });
+        if (userInput && !userInput.disabled && !isVoiceModeActive) {
+            userInput.focus();
+        }
     } catch (e) {
         console.error("Failed to load history", e);
         const errorHtml = '<div class="text-center text-gray-400 mt-10">Failed to load conversation history.</div>';
@@ -1843,8 +1846,23 @@ async function sendMessage() {
             setTimeout(() => stopBtn.classList.add('hidden'), 300);
         }
 
-        // Check if Send Button should be restored
-        if (userInput) userInput.disabled = false; // Always re-enable input
+        // Re-enable and automatically refocus input field after response completion
+        if (userInput) {
+            userInput.disabled = false;
+            if (!isVoiceModeActive) {
+                userInput.focus();
+                requestAnimationFrame(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                });
+                setTimeout(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                }, 50);
+            }
+        }
         if (sendBtn && (userInput.value.trim().length > 0 || selectedImage)) {
             sendBtn.classList.remove('scale-0', 'opacity-0');
             sendBtn.classList.add('scale-100', 'opacity-100');

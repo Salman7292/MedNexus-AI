@@ -1050,6 +1050,9 @@ async function loadHistory(threadId) {
         }
         // Scroll to bottom after history is loaded
         chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'instant' });
+        if (userInput && !userInput.disabled && !isVoiceModeActive) {
+            userInput.focus();
+        }
     } catch (e) {
         console.error("Failed to load history", e);
         const errorHtml = '<div class="text-center text-gray-400 mt-10">Failed to load conversation history.</div>';
@@ -1676,6 +1679,7 @@ async function sendMessage() {
     if (welcome) welcome.remove();
 
     userInput.value = '';
+    userInput.disabled = true;
     // userInput.style.height = 'auto'; // Removed auto-resize logic
 
     // Hide send button after sending
@@ -1842,6 +1846,24 @@ async function sendMessage() {
         if (stopBtnMobile) {
             stopBtnMobile.classList.remove('scale-100', 'opacity-100');
             setTimeout(() => stopBtnMobile.classList.add('hidden'), 300);
+        }
+
+        // Re-enable and automatically refocus input field after response completion
+        if (userInput) {
+            userInput.disabled = false;
+            if (!isVoiceModeActive) {
+                userInput.focus();
+                requestAnimationFrame(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                });
+                setTimeout(() => {
+                    if (userInput && !userInput.disabled && !isVoiceModeActive) {
+                        userInput.focus();
+                    }
+                }, 50);
+            }
         }
 
         // Check if Send Button should be restored

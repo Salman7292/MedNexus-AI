@@ -880,6 +880,7 @@ def analyze_skin_or_report_image(image_path: str) -> str:
     - You MUST use the EXACT file path provided in the "[System Alert: User uploaded an image. Local Path: ...]" message.
     - Copy the path character-for-character.
     - DO NOT make up, guess, or hallucinate a path (like 'D:\\tmp\\...'). If you don't see a [System Alert] with a path, do not use this tool.
+    - DO NOT perform diagnoses or name suspected medical conditions (e.g., eczema, psoriasis, fungal infection). ONLY describe the objective visual features of the image (anatomical location, visual appearance, lesions, redness, texture, bumps, scaling).
     """
     clean_path = str(image_path).strip().strip("'\"").replace("\\", "/")
     print(f"\n======================================================================\n[TOOL INVOKED: analyze_skin_or_report_image]\n  Input Image Path: {clean_path}\n======================================================================", flush=True)
@@ -2009,26 +2010,25 @@ def _get_next_unasked_question(profile: Dict[str, Any]) -> str:
     and transitioning cleanly to consultation closure when history is complete.
 
     Order:
-      - If the patient's chief complaint is not yet known, ask about it first.
-      - Only collect demographics (name/age/location/gender) AFTER the complaint is
-        understood, so the conversation begins naturally rather than mechanically.
+      - Collect patient demographics (name, age, gender, location) included in patient history.
+      - Chief complaint / main skin concern.
       - Then collect clinical history one question at a time.
     """
     answered = profile.get("answered_topics", set())
 
-    # If no complaint is known yet, ask for the main concern first.
-    if not profile.get("complaint") and not profile.get("lesion_location") and not profile.get("image_inferred_region"):
-        return "Could you tell me what skin concern or problem has brought you here today?"
-
-    # Collect demographics progressively (skip any that are already known).
+    # Collect demographics included in patient history (skip any that are already known).
     if not profile.get("name") and "name" not in answered:
         return "May I have your name, please?"
     if not profile.get("age") and "age" not in answered:
         return "How old are you?"
-    if not profile.get("location") and "location" not in answered:
-        return "Where are you located (city or region)?"
     if not profile.get("gender") and "gender" not in answered:
         return "What is your biological sex or gender?"
+    if not profile.get("location") and "location" not in answered:
+        return "Where are you located (city or region)?"
+
+    # If no complaint is known yet, ask for the main concern.
+    if not profile.get("complaint") and not profile.get("lesion_location") and not profile.get("image_inferred_region"):
+        return "Could you tell me what skin concern or problem has brought you here today?"
 
     # Clinical history
     if not profile.get("duration") and "duration" not in answered:
@@ -2081,7 +2081,15 @@ def validate_and_sanitize_response(text: str, profile: Dict[str, Any]) -> str:
         if not cleaned.strip():
             cleaned = "There are several standard therapeutic and diagnostic considerations documented for this condition. A licensed clinician must evaluate your presentation in person to select the appropriate treatment safely."
 
-    # 4. Prevent definitive diagnostic claims for vague lesions or retrieval candidates
+    # 4. Prevent premature diagnosis lists during visual image examination
+    cleaned = re.sub(
+        r'\b(?:These (?:kinds|types) of findings|These findings|Such features|Such findings)\s+(?:can be|are commonly|could be)\s+seen with (?:a few|several|various|different)\s+(?:different\s+)?skin conditions[,\s\w]*(?:such as|including)[^.!?]*[.!?]',
+        '',
+        cleaned,
+        flags=re.IGNORECASE
+    )
+
+    # 4b. Prevent definitive diagnostic claims for vague lesions or retrieval candidates
     definitive_patterns = [
         (r'\b(?:you have|this is definitively|this is an established case of|confirmed diagnosis is|diagnosed with)\s+(?:a\s+)?(?:confirmed\s+)?(hsv-1|herpes|cold sore|melanoma|carcinoma|bacterial infection|tinea|acne|folliculitis)', 
          r'this presentation could suggest several possibilities, including viral lesions (such as HSV-1), localized folliculitis, or dermatitis. An in-person evaluation is necessary to confirm.'),
@@ -2452,7 +2460,7 @@ def build_system_message(profile: Dict[str, Any], messages: Optional[List[BaseMe
                         f"In your response, you must immediately acknowledge and describe the photograph to the patient in warm, everyday conversational language (NO medical jargon, NO robotic headers):\n"
                         f"1. Acknowledge the anatomical location ('{anat_val or 'area shown'}') and specific site ('{lesion_loc}').\n"
                         f"2. Describe what you observe using simple, everyday language (e.g., say 'redness and small bumps' rather than clinical terms like 'macules/papules' or 'pustules'). Translate raw visual notes ('{what_is_on_loc}') into plain, patient-friendly terms.\n"
-                        f"3. Note common patterns or conditions this might suggest in simple words ('{suspected_cond}'), explaining gently that an in-person check by a doctor is needed to know for sure.\n"
+                        f"3. DO NOT offer diagnoses, name diseases, or suggest medical conditions (such as eczema, psoriasis, fungal infection, etc.) from the image alone. ONLY describe the visual findings, appearance, colors, and textures. Diagnosis is strictly deferred until complete history is gathered.\n"
                         f"4. Do NOT ask 'which body part is it on?' or 'what does it look like?'.\n"
                         f"5. End naturally with at most ONE gentle follow-up question (e.g. how long it has been there). NEVER prefix it with 'Question:' or any header label.\n"
                     )
@@ -2595,21 +2603,25 @@ def build_system_message(profile: Dict[str, Any], messages: Optional[List[BaseMe
         f"{phase4_transition_section}\n"
 
         "--- STRICT WORKFLOW PROTOCOL ---\n"
-        "0. FIRST CONTACT / GREETING:\n"
-        "   - If the patient's Chief Complaint is 'Not yet provided' and this appears to be the first or second turn of the conversation,"
-        " greet the patient warmly as Dr. Zavian and ask them what skin concern or problem has brought them in today."
-        " Do NOT immediately launch into a demographic questionnaire.\n"
+        "0. FIRST CONTACT / GREETING & PATIENT HISTORY INTAKE:\n"
+        "   - When greeting the patient for the first time, greet them warmly as Dr. Zavian.\n"
+        "   - Crucially, collect their essential demographic details included in their patient history: Name, Age, Gender, and Location.\n"
+        "   - Make sure that you collect all of them (Name, Age, Gender, and Location) during initial greeting and consultation intake, asking progressively (one by one) so the confirmed patient history is fully established.\n"
+        "   - If any of these fields (Name, Age, Gender, Location) are already provided or known in the patient record above, DO NOT ask for them again.\n"
+        "   - Along with these details, inquire what skin concern or problem has brought them in today.\n"
         "1. SINGLE QUESTION MANDATE (ZERO TOLERANCE): You must ask EXACTLY ONE question per response. Never combine questions with 'and', commas, or semicolons.\n"
         "2. IMAGE ANALYSIS (MANDATORY TOOL CALL):\n"
         "   - When an image is uploaded (indicated by '[System Alert: User uploaded an image. Local Path: ...]'), you MUST IMMEDIATELY call the 'analyze_skin_or_report_image' tool with the exact Local Path provided before offering any diagnostic reasoning or follow-up question.\n"
         "   - NEVER assume, hallucinate, or guess skin findings without calling this tool.\n"
         "   - Extract the Local Path from [System Alert] but keep the technical file path hidden from the patient.\n"
+        "   - DO NOT MAKE DIAGNOSES: The image analysis tool and response are strictly for objective visual description. Do not diagnose diseases or conditions from the image.\n"
         "3. IMAGE OBSERVATIONS & EXPLANATION:\n"
         "   - Once 'analyze_skin_or_report_image' has executed (or when active image observations are in context), explain the visible findings in simple, patient-friendly terms.\n"
+        "   - STRICTLY DESCRIPTION ONLY, NO DIAGNOSES: You must ONLY describe the visual appearance of the image (body part, lesion appearance, size, color, bumps, texture, scaling, crusting). DO NOT diagnose or list possible conditions (do NOT say 'this could be eczema, psoriasis or a fungal infection'). Diagnostic reasoning is strictly forbidden during image description and must wait until full clinical history is gathered.\n"
         "   - If the patient asks 'What is in the image?' or says 'You can see it in the image', answer directly from the analyzed observations. Name the identified body part and visible skin findings. Do NOT ask 'which body part is it on?'.\n"
         "   - Distinguish visible observations from possible diagnoses: a raised bump with redness is an observation; folliculitis or dermatitis is an interpretation, not a proven fact.\n"
         "4. HISTORY COLLECTION (NATURAL CONVERSATION):\n"
-        "   - Start by understanding the patient's main concern. Only then collect demographics (name, age, location, gender) one field at a time.\n"
+        "   - Make sure essential demographics (Name, Age, Gender, Location) are collected during greeting/first contact as part of patient history. Collect them one field at a time.\n"
         "   - If any field is already known above, DO NOT ask for it again.\n"
         "   - After demographics, ask relevant clinical history ONE question at a time: duration, pain, itching, triggers, prior treatments, spreading/changes.\n"
         "   - After the initial clinical history, collect safety fields for medication guidance: allergies, existing medical conditions, and current medications. These are REQUIRED before discussing any treatment.\n"
